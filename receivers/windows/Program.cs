@@ -219,6 +219,17 @@ namespace HPlayReceiver
                 catch (SocketException)
                 {
                     if (i < 10) { Thread.Sleep(500); continue; }
+                    var args = Environment.GetCommandLineArgs();
+                    if (args.Contains("--updated") && !args.Contains("--respawned"))
+                    {
+                        // Lanzado por el actualizador de la v1.1, que nos pasó su socket abierto: se relanza limpio una vez.
+                        Ui(() =>
+                        {
+                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Application.ExecutablePath, "--updated --respawned") { UseShellExecute = true });
+                            Close();
+                        });
+                        return;
+                    }
                     Ui(() => MessageBox.Show(es ? "El puerto 8766 está ocupado." : "Port 8766 is busy.", Text));
                     return;
                 }

@@ -222,7 +222,9 @@ namespace HPlayReceiver
                 Process.Start("explorer.exe", "/select,\"" + downloaded + "\"");
                 return;
             }
-            Process.Start(new ProcessStartInfo(exe, "--updated") { UseShellExecute = false });
+            // ShellExecute: el proceso nuevo NO hereda los sockets de este (en .NET Framework son heredables
+            // y el puerto 8766 quedaría ocupado por un socket huérfano). Fallo real visto en la v1.1.
+            Process.Start(new ProcessStartInfo(exe, "--updated") { UseShellExecute = true });
             owner.Close();
         }
     }

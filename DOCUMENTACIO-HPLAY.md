@@ -1,6 +1,6 @@
 # HPlay — documentación viva
 
-> Última actualización: 2026-10-12 · versión 1.1 · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
+> Última actualización: 2026-10-12 · versión 1.2 · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
 
 ## 0. Estado
 
@@ -179,6 +179,11 @@ Actualizadores (móvil y tele: módulo `:updater`; Windows: `receivers/windows/A
 La v1.0 se firmó con clave de prueba: quien la tenga debe desinstalarla una vez. Desde la v1.1 todo se actualiza solo.
 
 ## 10. Registro de cambios
+
+- **2026-10-12 · 1.2** — Prueba real del actualizador: móvil y tele (emulador) pasan de 1.0-test a 1.1 solos (firma del
+  manifiesto, SHA-256, certificado e instalador). El .exe se sustituía bien pero arrancaba con el puerto 8766 colgado:
+  .NET Framework hereda los sockets al proceso hijo. Arreglo: arranque del nuevo con ShellExecute (sin herencia) y,
+  si un .exe recién actualizado no puede abrir el puerto, se relanza limpio una vez (cubre a quien venga de la 1.1).
 
 - **2026-10-12 · 1.1** — Sistema de actualizaciones del CONTEXT-BASE §4.2: clave de firma propia, `update.json` firmado,
   actualizador en móvil, tele y .exe, versión única en `gradle.properties`, `build-apk.sh` (comprobación de documentación,
