@@ -1,0 +1,12 @@
+{
+  "id": "com.hplay.receiver",
+  "version": "1.0.0",
+  "vendor": "HPlay (open source)",
+  "type": "web",
+  "main": "index.html",
+  "title": "HPlay",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "resolution": "1920x1080",
+  "requiredPermissions": []
+}

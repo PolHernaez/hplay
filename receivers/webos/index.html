@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HPlay</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #040b26; color: #e8ecff; font-family: sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding: 8vh 24px; text-align: center; }
+  h1 { font-size: 64px; margin: 0 0 12px; }
+  p { font-size: 28px; }
+  label { display: block; font-size: 26px; margin-top: 24px; }
+  input { font-size: 40px; width: 12em; max-width: 100%; text-align: center; padding: 10px; border-radius: 12px; border: 3px solid #2ec8f7; background: #0b1638; color: #fff; }
+  button { font-size: 32px; padding: 14px 40px; margin-top: 28px; border-radius: 12px; border: 0; background: #2ec8f7; color: #00131f; }
+  input:focus, button:focus { outline: 5px solid #fff; }
+  #err { color: #ff8a7a; min-height: 1.5em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>HPlay</h1>
+  <p id="intro"></p>
+  <form id="f">
+    <label for="host" id="lh"></label>
+    <input id="host" inputmode="decimal" autocomplete="off" placeholder="192.168.1.23:8765">
+    <label for="code" id="lc"></label>
+    <input id="code" maxlength="6" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <br><button type="submit">OK</button>
+  </form>
+  <p id="err"></p>
+</main>
+<script>
+/* Lanzador del receptor HPlay para teles con webOS / Tizen: recuerda la IP del móvil y solo pide el código. ES5. */
+(function () {
+  var es = (navigator.language || '').toLowerCase().indexOf('es') === 0;
+  var T = es
+    ? { intro: 'En el móvil pulsa «Duplicar pantalla» o «Enviar vídeo» y copia aquí lo que aparece.', host: 'Dirección del móvil (IP:puerto)', code: 'Código (las letras tras la última barra)', bad: 'Revisa la dirección y el código.' }
+    : { intro: 'On the phone press «Mirror screen» or «Send video» and type here what it shows.', host: 'Phone address (IP:port)', code: 'Code (the letters after the last slash)', bad: 'Check the address and the code.' };
+  document.getElementById('intro').textContent = T.intro;
+  document.getElementById('lh').textContent = T.host;
+  document.getElementById('lc').textContent = T.code;
+  var host = document.getElementById('host');
+  var code = document.getElementById('code');
+  try { host.value = localStorage.getItem('hplay.host') || ''; } catch (e) {}
+  (host.value ? code : host).focus();
+  document.getElementById('f').onsubmit = function (e) {
+    e.preventDefault();
+    var h = host.value.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/\s/g, '');
+    var c = code.value.replace(/[^a-z0-9]/gi, '').toLowerCase();
+    if (h.indexOf(':') < 0) h += ':8765';
+    if (!/^[0-9.]+:[0-9]+$/.test(h) || !c) { document.getElementById('err').textContent = T.bad; return; }
+    try { localStorage.setItem('hplay.host', h); } catch (x) {}
+    location.href = 'http://' + h + '/' + c + '/';
+  };
+})();
+</script>
+</body>
+</html>

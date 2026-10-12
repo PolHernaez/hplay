@@ -1,0 +1,72 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      KS: ${{ secrets.HPLAY_KEYSTORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests
+        run: chmod +x gradlew && ./gradlew testDebugUnitTest --no-daemon
+
+      # Secrets: HPLAY_KEYSTORE_BASE64, HPLAY_KEYSTORE_PASSWORD, HPLAY_KEY_ALIAS, HPLAY_KEY_PASSWORD.
+      # Sin ellos se publica la APK de depuración (instalable, firmada con la clave debug).
+      - name: Decode keystore
+        if: env.KS != ''
+        run: echo "$KS" | base64 -d > "$RUNNER_TEMP/hplay.jks"
+
+      - name: Build signed release
+        if: env.KS != ''
+        env:
+          HPLAY_KEYSTORE: ${{ runner.temp }}/hplay.jks
+          HPLAY_KEYSTORE_PASSWORD: ${{ secrets.HPLAY_KEYSTORE_PASSWORD }}
+          HPLAY_KEY_ALIAS: ${{ secrets.HPLAY_KEY_ALIAS }}
+          HPLAY_KEY_PASSWORD: ${{ secrets.HPLAY_KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease --no-daemon
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk out/HPlay.apk
+          cp receivers/androidtv/build/outputs/apk/release/androidtv-release.apk out/HPlay-Receiver-TV.apk
+
+      - name: Build debug (no signing secrets)
+        if: env.KS == ''
+        run: |
+          ./gradlew assembleDebug --no-daemon
+          mkdir -p out
+          cp app/build/outputs/apk/debug/app-debug.apk out/HPlay.apk
+          cp receivers/androidtv/build/outputs/apk/debug/androidtv-debug.apk out/HPlay-Receiver-TV.apk
+
+      - name: Package TV web apps
+        run: |
+          (cd receivers/webos && zip -r ../../out/HPlay-webOS-src.zip .)
+          (cd receivers/tizen && zip -r ../../out/HPlay-Tizen-src.zip .)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hplay
+          path: out/
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" out/* --title "HPlay $GITHUB_REF_NAME" --generate-notes

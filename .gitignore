@@ -1,0 +1,9 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+*.keystore
+*.jks
+graphify-out/
+CONTEXT-BASE.md
