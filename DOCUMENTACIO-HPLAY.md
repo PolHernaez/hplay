@@ -1,6 +1,6 @@
 # HPlay — documentación viva
 
-> Última actualización: 2026-10-12 · versión 1.2 · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
+> Última actualización: 2026-10-12 · versión 1.3 · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
 
 ## 0. Estado
 
@@ -181,6 +181,12 @@ Actualizadores (móvil y tele: módulo `:updater`; Windows: `receivers/windows/A
 La v1.0 se firmó con clave de prueba: quien la tenga debe desinstalarla una vez. Desde la v1.1 todo se actualiza solo.
 
 ## 10. Registro de cambios
+
+- **2026-10-12 · 1.3** — «Enviar vídeo» sin web abierta: el WebView vacío se pintaba negro encima de todo y tapaba la barra
+  de dirección (Pol no veía dónde escribir). Ahora se muestra una explicación: es un navegador para webs y, para vídeos
+  de otras apps, se usa el botón de enviar de esa app con el receptor abierto. Comprobado que Play Shots
+  (`com.shotstv.playshots`) envía por DLNA con Cling (`DLNACastManager`) y que las descripciones UPnP del receptor son
+  coherentes (todas las variables que usan las acciones existen), que es lo que Cling exige para mostrar el aparato.
 
 - **2026-10-12 · 1.2** — Prueba real del actualizador: móvil y tele (emulador) pasan de 1.0-test a 1.1 solos (firma del
   manifiesto, SHA-256, certificado e instalador). El .exe se sustituía bien pero arrancaba con el puerto 8766 colgado:

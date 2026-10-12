@@ -54,4 +54,7 @@
     <string name="battery_done">Already excluded</string>
     <string name="battery_autostart">Open auto launch</string>
     <string name="battery_app_settings">Open app settings</string>
+    <string name="browser_empty_title">Type the video\'s website above</string>
+    <string name="browser_empty_web">This browser is for websites (for example twitch.tv). Open the site, start the video and it will show up below, ready to send.</string>
+    <string name="browser_empty_apps">Is the video in another app? HPlay cannot see inside other apps. Open HPlay Receiver on the PC or TV and use that app\'s own cast/TV button. If it has none, use «Mirror screen».</string>
 </resources>

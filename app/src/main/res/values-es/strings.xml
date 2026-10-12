@@ -53,4 +53,7 @@
     <string name="battery_done">Ya está excluida</string>
     <string name="battery_autostart">Abrir inicio automático</string>
     <string name="battery_app_settings">Abrir ajustes de la app</string>
+    <string name="browser_empty_title">Escribe arriba la web del vídeo</string>
+    <string name="browser_empty_web">Este navegador sirve para webs (por ejemplo twitch.tv). Abre la web, pon el vídeo en marcha y aparecerá abajo para enviarlo.</string>
+    <string name="browser_empty_apps">¿El vídeo está en otra app? HPlay no puede ver dentro de otras apps. Abre HPlay Receptor en el PC o la tele y usa el botón de enviar de esa app (el icono de pantalla). Si no lo tiene, usa «Duplicar pantalla».</string>
 </resources>

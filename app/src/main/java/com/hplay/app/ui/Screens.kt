@@ -347,38 +347,48 @@ private fun BrowserScreen(vm: MainViewModel) {
             )
             TextButton(onClick = ::go) { Text(stringResource(R.string.go)) }
         }
-        AndroidView(
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.mediaPlaybackRequiresUserGesture = true
-                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                            val url = request.url.toString()
-                            val headers = HashMap(request.requestHeaders)
-                            CookieManager.getInstance().getCookie(url)?.let { headers["Cookie"] = it }
-                            vm.onRequest(url, headers)
-                            return null // solo se observa: el WebView carga normal
-                        }
+        // Sin web abierta, el WebView vacío se pinta negro encima de toda la pantalla (tapaba la barra de dirección):
+        // hasta que hay una URL se muestra una explicación.
+        if (target.isBlank()) {
+            Column(Modifier.weight(1f).fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(stringResource(R.string.browser_empty_title), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.browser_empty_web))
+                Text(stringResource(R.string.browser_empty_apps), color = MaterialTheme.colorScheme.primary)
+            }
+        } else {
+            AndroidView(
+                factory = { ctx ->
+                    WebView(ctx).apply {
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.mediaPlaybackRequiresUserGesture = true
+                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                                val url = request.url.toString()
+                                val headers = HashMap(request.requestHeaders)
+                                CookieManager.getInstance().getCookie(url)?.let { headers["Cookie"] = it }
+                                vm.onRequest(url, headers)
+                                return null // solo se observa: el WebView carga normal
+                            }
 
-                        override fun onPageFinished(view: WebView, url: String) {
-                            vm.pageTitle = view.title.orEmpty()
-                            input = url
+                            override fun onPageFinished(view: WebView, url: String) {
+                                vm.pageTitle = view.title.orEmpty()
+                                input = url
+                            }
                         }
+                        web = this
                     }
-                    web = this
-                }
-            },
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-        )
+                },
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
+        }
         LaunchedEffect(target, web) { if (target.isNotBlank()) web?.loadUrl(target) }
 
         val dest = devices.firstOrNull { it.ip == selected }?.name ?: stringResource(R.string.no_device)
         Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(12.dp)) {
             Text(stringResource(R.string.send_to, dest), fontSize = 13.sp)
-            if (detected.isEmpty()) Text(stringResource(R.string.no_media_yet), fontSize = 14.sp)
+            if (detected.isEmpty() && target.isNotBlank()) Text(stringResource(R.string.no_media_yet), fontSize = 14.sp)
             LazyColumn(Modifier.heightIn(max = 220.dp)) {
                 items(detected, key = { it.url }) { m ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
