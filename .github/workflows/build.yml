@@ -1,20 +1,16 @@
 name: Build
 
+# Solo comprueba que todo compila y que los tests pasan.
+# Publicar lo hace build-apk.sh en el PC de Pol: las claves de firma nunca salen de allí.
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   android:
     runs-on: ubuntu-latest
-    env:
-      KS: ${{ secrets.HPLAY_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -25,45 +21,15 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Unit tests
-        run: chmod +x gradlew && ./gradlew testDebugUnitTest --no-daemon
-
-      # Secrets: HPLAY_KEYSTORE_BASE64, HPLAY_KEYSTORE_PASSWORD, HPLAY_KEY_ALIAS, HPLAY_KEY_PASSWORD.
-      # Sin ellos se publica la APK de depuración (instalable, firmada con la clave debug).
-      - name: Decode keystore
-        if: env.KS != ''
-        run: echo "$KS" | base64 -d > "$RUNNER_TEMP/hplay.jks"
-
-      - name: Build signed release
-        if: env.KS != ''
-        env:
-          HPLAY_KEYSTORE: ${{ runner.temp }}/hplay.jks
-          HPLAY_KEYSTORE_PASSWORD: ${{ secrets.HPLAY_KEYSTORE_PASSWORD }}
-          HPLAY_KEY_ALIAS: ${{ secrets.HPLAY_KEY_ALIAS }}
-          HPLAY_KEY_PASSWORD: ${{ secrets.HPLAY_KEY_PASSWORD }}
-        run: |
-          ./gradlew assembleRelease --no-daemon
-          mkdir -p out
-          cp app/build/outputs/apk/release/app-release.apk out/HPlay.apk
-          cp receivers/androidtv/build/outputs/apk/release/androidtv-release.apk out/HPlay-Receptor-TV.apk
-
-      - name: Build debug (no signing secrets)
-        if: env.KS == ''
-        run: |
-          ./gradlew assembleDebug --no-daemon
-          mkdir -p out
-          cp app/build/outputs/apk/debug/app-debug.apk out/HPlay.apk
-          cp receivers/androidtv/build/outputs/apk/debug/androidtv-debug.apk out/HPlay-Receptor-TV.apk
-
-      - name: Package TV web apps
-        run: |
-          (cd receivers/webos && zip -r ../../out/HPlay-webOS-src.zip .)
-          (cd receivers/tizen && zip -r ../../out/HPlay-Tizen-src.zip .)
+      - name: Tests and debug build
+        run: chmod +x gradlew && ./gradlew testDebugUnitTest assembleDebug --no-daemon
 
       - uses: actions/upload-artifact@v4
         with:
-          name: android
-          path: out/
+          name: android-debug
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            receivers/androidtv/build/outputs/apk/debug/androidtv-debug.apk
 
   windows:
     runs-on: windows-latest
@@ -81,31 +47,3 @@ jobs:
         with:
           name: windows
           path: out/HPlay-Receptor.exe
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [android, windows]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-
-      - name: Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "HPlay $GITHUB_REF_NAME" --notes-file - <<'EOF'
-          ## Qué descargar
-
-          | Fichero | Para qué |
-          |---|---|
-          | **HPlay-Receptor.exe** | PC con Windows 10/11. Ábrelo y el PC aparece en el botón «enviar a la tele» de las apps de vídeo (DLNA). Portable, sin instalar. |
-          | **HPlay-Receptor-TV.apk** | Android TV, Google TV o Fire TV. Lo mismo, en la tele. |
-          | **HPlay.apk** | Móvil Android: duplicar pantalla y enviar vídeos desde su navegador integrado. |
-          | HPlay-webOS-src.zip / HPlay-Tizen-src.zip | Lanzadores para teles LG/Samsung (modo desarrollador). |
-
-          Primera vez en Windows: si sale el aviso del Firewall, marca **Redes privadas** y pulsa *Permitir*.
-          Las APK de esta versión están firmadas con clave de depuración.
-          EOF

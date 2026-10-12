@@ -13,6 +13,8 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.hplay.updater.UpdateFlow
+import com.hplay.updater.Updater
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -132,6 +134,14 @@ class ReceiverActivity : Activity(), Renderer.Player {
     override fun seek(sec: Double) = runOnUiThread { js("hplay.seek($sec)") }
     override fun setVolume(v: Int) = runOnUiThread { js("hplay.volume($v)") }
     override fun setMute(m: Boolean) = runOnUiThread { js("hplay.mute($m)") }
+
+    override fun onResume() {
+        super.onResume()
+        // Tele: se avisa al abrir. La versión obligatoria no deja seguir sin actualizar.
+        UpdateFlow.check(this) { state, m ->
+            if (state != Updater.State.LATEST && m != null) UpdateFlow.show(this, "HPlay-Receptor-TV.apk", m, forced = state == Updater.State.FORCED)
+        }
+    }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {

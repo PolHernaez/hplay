@@ -5,4 +5,5 @@
 3. Emulador de pruebas: `immic34` (API 34). `adb forward tcp:8765 tcp:8765` y abrir `http://localhost:8765/<código>/` para ver el receptor.
 4. Textos de la app: `values/strings.xml` (inglés) y `values-es/strings.xml` siempre a la vez.
 5. Nada de DRM, FLAG_SECURE ni protocolos propietarios (Cast/AirPlay) por ingeniería inversa: límites legales del proyecto.
-6. Tras un cambio importante, actualizar §0 y §9 de `DOCUMENTACIO-HPLAY.md`.
+6. Tras un cambio importante, actualizar §0 y §10 de `DOCUMENTACIO-HPLAY.md`.
+7. Publicar SOLO con `bash build-apk.sh`: antes, subir la versión en `gradle.properties` y añadir la entrada «· X.Y» en §10. Claves en `C:\Users\Pol\HPlay-claus` (nunca al repo).

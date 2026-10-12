@@ -31,9 +31,14 @@ namespace HPlayReceiver
         [MethodImpl(MethodImplOptions.NoInlining)] // los tipos de WebView2 se cargan después del AssemblyResolve
         static void Run()
         {
-            using (new Mutex(true, "HPlayReceiver.Single", out var first))
+            var updated = Environment.GetCommandLineArgs().Contains("--updated");
+            using (var single = new Mutex(false, "HPlayReceiver.Single"))
             {
-                if (!first) return; // ya hay uno abierto (el puerto 8766 es suyo)
+                // Uno solo abierto (el puerto 8766 es suyo). Tras actualizar, se espera a que cierre el viejo.
+                bool mine;
+                try { mine = single.WaitOne(updated ? 15000 : 0); } catch (AbandonedMutexException) { mine = true; }
+                if (!mine) return;
+                AutoUpdate.CleanupOld();
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 Application.Run(new ReceiverForm());
@@ -134,6 +139,7 @@ namespace HPlayReceiver
                 new Thread(HttpLoop) { IsBackground = true, Name = "hplay-http" }.Start();
                 new Thread(SsdpLoop) { IsBackground = true, Name = "hplay-ssdp" }.Start();
                 ShowPlayer(null, null, null);
+                AutoUpdate.Check(this, es);
             };
             FormClosing += (s, e) =>
             {
@@ -201,15 +207,21 @@ namespace HPlayReceiver
 
         void HttpLoop()
         {
-            try
+            // Tras una actualización el proceso viejo puede tardar un momento en soltar el puerto.
+            for (int i = 0; ; i++)
             {
-                http = new TcpListener(IPAddress.Any, Port);
-                http.Start();
-            }
-            catch (SocketException)
-            {
-                Ui(() => MessageBox.Show(es ? "El puerto 8766 está ocupado." : "Port 8766 is busy.", Text));
-                return;
+                try
+                {
+                    http = new TcpListener(IPAddress.Any, Port);
+                    http.Start();
+                    break;
+                }
+                catch (SocketException)
+                {
+                    if (i < 10) { Thread.Sleep(500); continue; }
+                    Ui(() => MessageBox.Show(es ? "El puerto 8766 está ocupado." : "Port 8766 is busy.", Text));
+                    return;
+                }
             }
             while (running)
             {

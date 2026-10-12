@@ -37,6 +37,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val session = Session.state
     val remote = HPlayService.remote
     val remoteStatus = MutableStateFlow<Remote.Status?>(null)
+    /** Versión nueva disponible (no obligatoria); la obligatoria la muestra la Activity como diálogo. */
+    val update = MutableStateFlow<com.hplay.updater.Updater.Manifest?>(null)
 
     val browserUrl = MutableStateFlow("")
     val detected = MutableStateFlow<List<Media>>(emptyList())

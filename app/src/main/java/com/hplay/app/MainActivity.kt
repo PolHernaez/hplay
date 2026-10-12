@@ -14,6 +14,8 @@ import com.hplay.app.capture.HPlayService
 import com.hplay.app.ui.HPlayTheme
 import com.hplay.app.ui.MainScreen
 import com.hplay.app.ui.MainViewModel
+import com.hplay.updater.UpdateFlow
+import com.hplay.updater.Updater
 
 class MainActivity : ComponentActivity() {
     private val vm: MainViewModel by viewModels()
@@ -29,11 +31,24 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { HPlayTheme { MainScreen(vm, onMirror = ::startMirror) } }
+        setContent { HPlayTheme { MainScreen(vm, onMirror = ::startMirror, onUpdate = ::showUpdate) } }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             registerForActivityResult(ActivityResultContracts.RequestPermission()) {}.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         if (savedInstanceState == null) handleIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Al volver de los ajustes de «instalar apps» también se vuelve a comprobar.
+        UpdateFlow.check(this) { state, m ->
+            vm.update.value = if (state == Updater.State.NEWER) m else null
+            if (state == Updater.State.FORCED && m != null) UpdateFlow.show(this, ASSET, m, forced = true)
+        }
+    }
+
+    private fun showUpdate() {
+        vm.update.value?.let { UpdateFlow.show(this, ASSET, it, forced = false) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -61,5 +76,6 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private val URL_IN_TEXT = Regex("https?://\\S+")
+        private const val ASSET = "HPlay.apk"
     }
 }

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="upd_title">HPlay %1$s</string>
+    <string name="upd_body">A new version is available (you have %2$s). It keeps your settings.</string>
+    <string name="upd_forced">This version of HPlay is no longer supported. Update to %1$s to keep using it.</string>
+    <string name="upd_btn">Update</string>
+    <string name="upd_later">Later</string>
+    <string name="upd_downloading">Downloading… %1$d%%</string>
+    <string name="upd_retrying">Connection problem, retrying (%1$d/%2$d)…</string>
+    <string name="upd_installer">Opening the Android installer…</string>
+    <string name="upd_fail">The download failed. Check the Wi-Fi and try again.</string>
+    <string name="upd_bad">The downloaded file is not valid (damaged or not signed by HPlay). Nothing was installed.</string>
+    <string name="upd_retry">Retry</string>
+    <string name="upd_perm">To update, Android needs you to allow HPlay to install apps.</string>
+    <string name="upd_perm_btn">Open settings</string>
+    <string name="upd_perm_manual">Go to Settings → Apps → Special app access → Install unknown apps, and allow HPlay.</string>
+    <string name="upd_install_failed">Android did not install the update (%1$s).</string>
+    <string name="upd_banner">New version %1$s available</string>
+</resources>

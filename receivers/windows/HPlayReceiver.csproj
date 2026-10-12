@@ -14,10 +14,15 @@
     <AssemblyName>HPlay-Receptor</AssemblyName>
     <RootNamespace>HPlayReceiver</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>1.0.0</Version>
+    <!-- build-apk.sh pasa -p:Version=X.Y.0.versionCode; 0.0.0.0 = compilación de desarrollo (no se autoactualiza) -->
+    <Version>0.0.0.0</Version>
     <Product>HPlay Receptor</Product>
     <Copyright>GPL-3.0</Copyright>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Web.Extensions" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" GeneratePathProperty="true" />

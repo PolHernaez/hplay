@@ -1,6 +1,6 @@
 # HPlay — documentación viva
 
-> Última actualización: 2026-10-12 · versión 1.0 · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
+> Última actualización: 2026-10-12 · versión 1.1 · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
 
 ## 0. Estado
 
@@ -148,7 +148,41 @@ vídeos que envía. Permisos: red, multicast, micrófono (audio interno), notifi
 - Interfaz en inglés por defecto y español (`values-es`); el receptor web y las apps de tele se traducen según el idioma del navegador.
 - Distribución fuera de Google Play (GitHub Releases).
 
-## 9. Registro de cambios
+## 9. Actualizaciones y publicación
+
+**Una sola fuente de verdad: el último release de GitHub** (`PolHernaez/hplay`, repo público único por decisión de Pol).
+
+| Pieza | Dónde |
+|---|---|
+| Versión (una sola para móvil, tele y .exe) | `gradle.properties`: `hplay.versionName`, `hplay.versionCode`, `hplay.minRequired` |
+| Claves | `C:\Users\Pol\HPlay-claus\` (fuera del repo, **hacer copia**): `hplay-release.keystore` + `signatura.properties` (APK) y `update-signing.pem` (firma de update.json) |
+| Certificado esperado | `tools/cert-sha256.txt` · clave pública de update.json: `tools/update-public.pem` |
+| Publicar | `bash build-apk.sh` (con `NOTES="…"` opcional; `NOPUBLISH=1` para solo compilar) |
+
+`build-apk.sh`: exige la entrada «· X.Y» en §10 de este documento y el árbol de git limpio → tests + compilación
+firmada → comprueba el certificado de las dos APK → compila el .exe con `Version=X.Y.0.versionCode` → genera
+`update.json` (tamaño y SHA-256 de cada fichero) y lo firma (RSA-SHA256) → copia a Downloads → etiqueta `vX.Y`, push y
+release → comprueba que `releases/latest` sirve exactamente lo compilado. El CI de GitHub solo compila y pasa tests: las
+claves nunca salen del PC.
+
+Actualizadores (móvil y tele: módulo `:updater`; Windows: `receivers/windows/AutoUpdate.cs`):
+1. Descargan `releases/latest/download/update.json` + `.sig` y **solo se fían si la firma es válida** con la clave
+   pública incrustada (aunque alguien entrara en la cuenta de GitHub no podría colar un ejecutable).
+2. `versionCode` nuevo → aviso («Más tarde» posible); instalada < `minRequired` → **obligatoria** (no se puede cerrar;
+   también sin red, con el último manifiesto bueno en caché de 30 min).
+3. Descarga con 4 intentos (espera 2/4/6 s), reanudación con `Range`, tamaño exacto y SHA-256 del manifiesto.
+4. Android: además comprueba paquete, `versionCode` y **mismo certificado** que la app instalada; instala con
+   `PackageInstaller` (el usuario confirma). Pide el permiso «instalar apps desconocidas» si falta.
+5. Windows: renombra el .exe en marcha a `.old`, pone el nuevo en su sitio y se reinicia (`--updated`); el `.old` se
+   borra al arrancar. Las compilaciones de desarrollo (versión 0.0.0.0) no se actualizan.
+
+La v1.0 se firmó con clave de prueba: quien la tenga debe desinstalarla una vez. Desde la v1.1 todo se actualiza solo.
+
+## 10. Registro de cambios
+
+- **2026-10-12 · 1.1** — Sistema de actualizaciones del CONTEXT-BASE §4.2: clave de firma propia, `update.json` firmado,
+  actualizador en móvil, tele y .exe, versión única en `gradle.properties`, `build-apk.sh` (comprobación de documentación,
+  firma y bytes publicados) y CI solo de comprobación.
 
 - **2026-10-12 · 1.0 (cont.)** — Pol aclara que lo que quiere es «enviar vídeos como a un Chromecast» desde las apps.
   Receptores de Windows (.exe) y Android TV convertidos en **Media Renderer DLNA**; reproductor compartido

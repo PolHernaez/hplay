@@ -100,11 +100,11 @@ fun HPlayTheme(content: @Composable () -> Unit) = MaterialTheme(colorScheme = Co
 }
 
 @Composable
-fun MainScreen(vm: MainViewModel, onMirror: () -> Unit) {
+fun MainScreen(vm: MainViewModel, onMirror: () -> Unit, onUpdate: () -> Unit) {
     val screen by vm.screen.collectAsState()
     Box(Modifier.safeDrawingPadding()) {
         when (screen) {
-            MainViewModel.Screen.HOME -> HomeScreen(vm, onMirror)
+            MainViewModel.Screen.HOME -> HomeScreen(vm, onMirror, onUpdate)
             MainViewModel.Screen.BROWSER -> BrowserScreen(vm)
             MainViewModel.Screen.BATTERY -> BatteryScreen { vm.screen.value = MainViewModel.Screen.HOME }
         }
@@ -112,11 +112,12 @@ fun MainScreen(vm: MainViewModel, onMirror: () -> Unit) {
 }
 
 @Composable
-private fun HomeScreen(vm: MainViewModel, onMirror: () -> Unit) {
+private fun HomeScreen(vm: MainViewModel, onMirror: () -> Unit, onUpdate: () -> Unit) {
     val session by vm.session.collectAsState()
     val devices by vm.devices.collectAsState()
     val scanning by vm.scanning.collectAsState()
     val selected by vm.selectedIp.collectAsState()
+    val update by vm.update.collectAsState()
     var manual by remember { mutableStateOf("") }
 
     LazyColumn(
@@ -128,6 +129,16 @@ private fun HomeScreen(vm: MainViewModel, onMirror: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("HPlay", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 TextButton(onClick = { vm.screen.value = MainViewModel.Screen.BATTERY }) { Text(stringResource(R.string.battery_title)) }
+            }
+        }
+        update?.let { m ->
+            item {
+                Card(Modifier.fillMaxWidth().clickable(onClick = onUpdate), shape = RoundedCornerShape(14.dp)) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(com.hplay.updater.R.string.upd_banner, m.versionName), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        TextButton(onClick = onUpdate) { Text(stringResource(com.hplay.updater.R.string.upd_btn)) }
+                    }
+                }
             }
         }
         if (session.mode != Session.Mode.IDLE) item { SessionCard(vm, session) }

@@ -49,9 +49,8 @@ dotnet publish receivers/windows/HPlayReceiver.csproj -c Release -o out
 adb install -r -g app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Release firmada: exporta `HPLAY_KEYSTORE`, `HPLAY_KEYSTORE_PASSWORD`, `HPLAY_KEY_ALIAS`, `HPLAY_KEY_PASSWORD` y ejecuta
-`./gradlew assembleRelease`. GitHub Actions hace lo mismo con los secrets `HPLAY_KEYSTORE_BASE64` + los tres restantes y
-publica un release al subir una etiqueta `v*`.
+Publicar una versión (firma, `update.json` firmado y release): `bash build-apk.sh`. Necesita las claves de
+`HPlay-claus`, que no están en el repo. Las apps y el receptor de Windows se actualizan solos desde el último release.
 
 ## Estructura
 

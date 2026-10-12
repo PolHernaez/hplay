@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 rootProject.name = "HPlay"
 include(":app")
 include(":receivers:androidtv")
+include(":updater")

@@ -1,11 +1,16 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
 
-// Versión en un solo lugar.
-val appVersionName = "1.0"
-val appVersionCode = 1
+// Firma de release: C:/Users/Pol/HPlay-claus/signatura.properties (o la ruta de HPLAY_SIGNING). Nunca va al repo.
+// Sin ese fichero (CI, otro PC) la release sale sin firmar y build-apk.sh se niega a publicarla.
+val hplaySigning = Properties().apply {
+    val f = file(System.getenv("HPLAY_SIGNING") ?: "C:/Users/Pol/HPlay-claus/signatura.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
 
 android {
     namespace = "com.hplay.app"
@@ -15,25 +20,23 @@ android {
         applicationId = "com.hplay.app"
         minSdk = 29
         targetSdk = 35
-        versionCode = appVersionCode
-        versionName = appVersionName
+        versionCode = providers.gradleProperty("hplay.versionCode").get().toInt()
+        versionName = providers.gradleProperty("hplay.versionName").get()
     }
 
-    // Firma de release desde variables de entorno (GitHub Actions). Sin ellas, release queda sin firmar.
-    val ksPath = System.getenv("HPLAY_KEYSTORE")
     signingConfigs {
-        if (ksPath != null) create("release") {
-            storeFile = file(ksPath)
-            storePassword = System.getenv("HPLAY_KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("HPLAY_KEY_ALIAS")
-            keyPassword = System.getenv("HPLAY_KEY_PASSWORD")
+        if (!hplaySigning.isEmpty) create("release") {
+            storeFile = file(hplaySigning.getProperty("storeFile"))
+            storePassword = hplaySigning.getProperty("storePassword")
+            keyAlias = hplaySigning.getProperty("keyAlias")
+            keyPassword = hplaySigning.getProperty("keyPassword")
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            if (ksPath != null) signingConfig = signingConfigs.getByName("release")
+            if (!hplaySigning.isEmpty) signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
@@ -44,6 +47,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":updater"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)
     implementation(libs.compose.ui)
