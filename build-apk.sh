@@ -57,7 +57,7 @@ done
 echo "  firma buena"
 
 echo "[3/7] Receptor de Windows..."
-rm -f "$EXE"
+rm -rf "$EXE" receivers/windows/obj receivers/windows/bin # sin restos: la versión incrustada debe ser la nueva
 dotnet publish receivers/windows/HPlayReceiver.csproj -c Release -o receivers/windows/out -p:Version="$VER.0.$CODE" -nologo -v q > /dev/null
 [ -f "$EXE" ] || { echo "ERROR: no se ha generado el .exe"; exit 1; }
 

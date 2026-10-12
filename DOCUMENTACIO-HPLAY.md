@@ -13,6 +13,8 @@
 - **Receptores DLNA (Media Renderer)** — Windows `.exe` y Android TV, probados con un controlador DLNA de prueba
   (SSDP, descripción, SOAP y eventos): aparece como «HPlay · <nombre>», reproduce un HLS de 10:34, salta a 5:00,
   pausa, volumen, stop y eventos LastChange (PLAYING/PAUSED_PLAYBACK/STOPPED).
+- **Actualizador probado de punta a punta** (2026-10-12): móvil y tele en el emulador (1.0-test → 1.1 con firma,
+  SHA-256, certificado e instalador) y .exe en este PC (1.0 → 1.2 y la v1.1 publicada → 1.2 con autorreparación).
 - **Sin probar todavía con hardware real**: teles DLNA (LG/Samsung/Sony…), Roku, webOS/Tizen, móviles ColorOS/MIUI.
 
 ## 1. Arquitectura
