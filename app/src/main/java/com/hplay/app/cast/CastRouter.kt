@@ -48,7 +48,7 @@ object CastRouter {
     }
 
     /**
-     * Vídeo por URL: DLNA directo → DLNA por el proxy (cabeceras) → Roku → navegador receptor (QR).
+     * Vídeo por URL: DLNA directo → DLNA por el proxy (cabeceras) → app HPlay → Roku → navegador receptor (QR).
      * El receptor web siempre recibe el vídeo por el proxy, así sirve también como reserva.
      */
     fun sendUrl(server: StreamServer, device: Device?, url: String, headers: Map<String, String>, title: String): Result {
@@ -58,12 +58,6 @@ object CastRouter {
         val browser = BrowserRemote(server)
         device ?: return Result(R.string.route_browser_video, browser)
 
-        if (Cap.HPLAY in device.caps && device.hplayUrl != null) {
-            val ip = Net.localIpv4()
-            if (ip != null && runCatching { openOnHplayReceiver(device.hplayUrl, server.receiverUrl(ip)) }.isSuccess) {
-                return Result(R.string.route_hplay_app, browser)
-            }
-        }
         // Las cookies o la autorización no viajan si la tele pide la URL directamente.
         val needsProxy = headers.keys.any { it.equals("cookie", true) || it.equals("authorization", true) }
         val candidates = if (needsProxy) listOf(proxied) else listOf(url, proxied)
@@ -72,7 +66,14 @@ object CastRouter {
             val r = DlnaRemote(avt, device.renderingControlUrl)
             val mime = if (hls) device.profile.hlsMime() else MediaProxy.guessType(url).takeIf { it != "application/octet-stream" } ?: "video/mp4"
             for (u in candidates) if (tryLoad(r, u, title, mime, live = false)) return Result(R.string.route_dlna_video, r)
-            return Result(R.string.route_browser_video, browser, R.string.err_dlna_failed)
+            if (Cap.HPLAY !in device.caps) return Result(R.string.route_browser_video, browser, R.string.err_dlna_failed)
+        }
+        // Receptor HPlay sin DLNA (versión antigua) o DLNA fallido: abre el receptor web, que reproduce por el proxy.
+        if (Cap.HPLAY in device.caps && device.hplayUrl != null) {
+            val ip = Net.localIpv4()
+            if (ip != null && runCatching { openOnHplayReceiver(device.hplayUrl, server.receiverUrl(ip)) }.isSuccess) {
+                return Result(R.string.route_hplay_app, browser)
+            }
         }
         if (Cap.ROKU in device.caps) {
             val roku = RokuRemote(device.ip)

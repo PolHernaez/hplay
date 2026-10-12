@@ -1,4 +1,4 @@
-name: Build APK
+name: Build
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  android:
     runs-on: ubuntu-latest
     env:
       KS: ${{ secrets.HPLAY_KEYSTORE_BASE64 }}
@@ -45,7 +45,7 @@ jobs:
           ./gradlew assembleRelease --no-daemon
           mkdir -p out
           cp app/build/outputs/apk/release/app-release.apk out/HPlay.apk
-          cp receivers/androidtv/build/outputs/apk/release/androidtv-release.apk out/HPlay-Receiver-TV.apk
+          cp receivers/androidtv/build/outputs/apk/release/androidtv-release.apk out/HPlay-Receptor-TV.apk
 
       - name: Build debug (no signing secrets)
         if: env.KS == ''
@@ -53,7 +53,7 @@ jobs:
           ./gradlew assembleDebug --no-daemon
           mkdir -p out
           cp app/build/outputs/apk/debug/app-debug.apk out/HPlay.apk
-          cp receivers/androidtv/build/outputs/apk/debug/androidtv-debug.apk out/HPlay-Receiver-TV.apk
+          cp receivers/androidtv/build/outputs/apk/debug/androidtv-debug.apk out/HPlay-Receptor-TV.apk
 
       - name: Package TV web apps
         run: |
@@ -62,11 +62,50 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: hplay
+          name: android
           path: out/
 
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build receiver .exe
+        run: dotnet publish receivers/windows/HPlayReceiver.csproj -c Release -o out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: out/HPlay-Receptor.exe
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" out/* --title "HPlay $GITHUB_REF_NAME" --generate-notes
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "HPlay $GITHUB_REF_NAME" --notes-file - <<'EOF'
+          ## Qué descargar
+
+          | Fichero | Para qué |
+          |---|---|
+          | **HPlay-Receptor.exe** | PC con Windows 10/11. Ábrelo y el PC aparece en el botón «enviar a la tele» de las apps de vídeo (DLNA). Portable, sin instalar. |
+          | **HPlay-Receptor-TV.apk** | Android TV, Google TV o Fire TV. Lo mismo, en la tele. |
+          | **HPlay.apk** | Móvil Android: duplicar pantalla y enviar vídeos desde su navegador integrado. |
+          | HPlay-webOS-src.zip / HPlay-Tizen-src.zip | Lanzadores para teles LG/Samsung (modo desarrollador). |
+
+          Primera vez en Windows: si sale el aviso del Firewall, marca **Redes privadas** y pulsa *Permitir*.
+          Las APK de esta versión están firmadas con clave de depuración.
+          EOF

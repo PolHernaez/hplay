@@ -10,6 +10,9 @@
   `/live.ts` y `/live.m3u8` validados con ffprobe (H.264 Constrained Baseline + AAC-LC, PTS monótonos),
   vídeo por URL (HLS de prueba de Mux) → navegador a 720p por el proxy, mando remoto (pausa, posición 0:07/10:34),
   receptor Android TV descubierto por SSDP y abierto solo con `POST /open`, parada limpia (servicio y servidor cerrados).
+- **Receptores DLNA (Media Renderer)** — Windows `.exe` y Android TV, probados con un controlador DLNA de prueba
+  (SSDP, descripción, SOAP y eventos): aparece como «HPlay · <nombre>», reproduce un HLS de 10:34, salta a 5:00,
+  pausa, volumen, stop y eventos LastChange (PLAYING/PAUSED_PLAYBACK/STOPPED).
 - **Sin probar todavía con hardware real**: teles DLNA (LG/Samsung/Sony…), Roku, webOS/Tizen, móviles ColorOS/MIUI.
 
 ## 1. Arquitectura
@@ -93,6 +96,8 @@ Extras: pantalla apagada >5 min con la emisión activa (ColorOS: hacer antes la 
 - **DRM / FLAG_SECURE**: Netflix, Disney+, Prime, HBO, apps de banco salen en negro y sin audio. Es intencionado y legal; la app lo avisa.
 - **Audio interno**: solo apps que permiten la captura (`USAGE_MEDIA/GAME/UNKNOWN`); llamadas, WhatsApp y apps que lo
   prohíben no se oyen en la tele. Sin permiso de micrófono → espejo sin audio (aviso en pantalla).
+- **Botón de Google Cast** (YouTube, Twitch, Netflix…): ningún receptor libre puede aparecer ahí (exige certificados de
+  dispositivo firmados por Google). Los receptores HPlay salen en las apps con envío **DLNA/UPnP**.
 - **Google Cast y AirPlay**: no se emite a ellos (protocolos propietarios con autenticación; no se hace ingeniería inversa).
   Solo se detectan para que el usuario sepa qué tiene.
 - **RAOP / AirPlay 1 audio**: módulo **no incluido**. Sería viable con libraop (MIT) o código de shairport/pyatv vía NDK,
@@ -108,6 +113,16 @@ Extras: pantalla apagada >5 min con la emisión activa (ColorOS: hacer antes la 
 - Probado solo en emulador; ver §0.
 
 ## 6. Apps receptoras opcionales
+
+Las dos receptoras «de verdad» (Windows y Android TV) son **Media Renderer DLNA** (UPnP AV 1.0: AVTransport,
+RenderingControl, ConnectionManager, eventos GENA, anuncios SSDP cada 60 s y UUID estable). Por eso aparecen en el botón
+de enviar de cualquier app que use DLNA, no solo en HPlay. Reproducen con un `player.html` común (vídeo nativo + hls.js);
+en Windows sin CORS (`--disable-web-security`, la ventana solo carga páginas de la red local) y en Android desde
+`file:///android_asset` con acceso universal, porque las apps mandan listas HLS de CDN que no permiten otros orígenes.
+
+- **Windows** (`receivers/windows`): `.exe` de 1,5 MB para .NET Framework 4.8 (de serie en Windows 10/11) con WebView2
+  incrustado. Doble clic, sin instalar. La primera vez Windows pregunta por el firewall: permitir en **redes privadas**.
+  F11 pantalla completa, Esc salir de pantalla completa. Datos en `%LOCALAPPDATA%\HPlay`.
 
 - **Android TV / Fire TV** (`receivers/androidtv`): instalar `androidtv-debug.apk` (Fire TV: Ajustes → Mi Fire TV →
   Opciones de desarrollador → Apps de origen desconocido; luego `adb connect IP_TV` y `adb install`). Ábrela una vez:
@@ -134,6 +149,10 @@ vídeos que envía. Permisos: red, multicast, micrófono (audio interno), notifi
 - Distribución fuera de Google Play (GitHub Releases).
 
 ## 9. Registro de cambios
+
+- **2026-10-12 · 1.0 (cont.)** — Pol aclara que lo que quiere es «enviar vídeos como a un Chromecast» desde las apps.
+  Receptores de Windows (.exe) y Android TV convertidos en **Media Renderer DLNA**; reproductor compartido
+  (`receivers/shared`); la app del móvil prefiere DLNA directo al enviar vídeo y reconoce los receptores por `modelName`.
 
 - **2026-10-12 · 1.0** — Primera versión completa: espejo (navegador, DLNA TS/HLS, Roku, app TV), vídeo por URL con
   proxy, descubrimiento SSDP/mDNS/manual, receptores Android TV/webOS/Tizen, CI. Tras la prueba en emulador: `FramePump`

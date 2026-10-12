@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>HPlay</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: "Segoe UI", sans-serif; color: #e8ecff; }
+  video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  #idle { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; background: #040b26; }
+  #idle h1 { font-size: 56px; margin: 0 0 16px; }
+  #idle p { font-size: 24px; max-width: 900px; margin: 10px auto; }
+  #msg { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 20px; background: rgba(4, 11, 38, .85); font-size: 20px; }
+  .hide { display: none !important; }
+</style>
+</head>
+<body>
+<video id="v" playsinline></video>
+<div id="idle"><div><h1>HPlay</h1><p id="t1"></p><p id="t2" style="opacity:.7"></p><p id="t3" style="font-size:18px;opacity:.6"></p></div></div>
+<div id="msg" class="hide"></div>
+<script src="hls.js"></script>
+<script>
+  const v = document.getElementById('v');
+  const idle = document.getElementById('idle');
+  const msg = document.getElementById('msg');
+  const params = new URLSearchParams(location.search);
+  const es = /^(es|ca)/i.test(navigator.language);
+  function setInfo(name, ips) {
+    document.getElementById('t1').textContent = es
+      ? 'Listo para recibir. En la app de vídeo pulsa el botón de enviar a la tele y elige «' + (name || 'HPlay') + '».'
+      : 'Ready. In your video app tap the cast/TV button and pick «' + (name || 'HPlay') + '».';
+    document.getElementById('t2').textContent = ips || '';
+  }
+  setInfo(params.get('name'), params.get('ips'));
+  if (window.chrome && chrome.webview) document.getElementById('t3').textContent = es ? 'F11 pantalla completa · Esc salir' : 'F11 full screen · Esc exit';
+
+  let hls = null, state = 'NO_MEDIA_PRESENT', triedHls = false, current = null;
+
+  function say(text) { msg.textContent = text; msg.classList.toggle('hide', !text); }
+
+  function reset() {
+    if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+    v.pause();
+    v.removeAttribute('src');
+    v.load();
+  }
+
+  function viaHls(url) {
+    if (!window.Hls || !Hls.isSupported()) return false;
+    triedHls = true;
+    hls = new Hls({ enableWorker: true });
+    hls.on(Hls.Events.ERROR, (ev, d) => { if (d.fatal) { state = 'STOPPED'; say((es ? 'No se puede reproducir: ' : 'Cannot play: ') + d.details); } });
+    hls.loadSource(url);
+    hls.attachMedia(v);
+    return true;
+  }
+
+  function load(url, mime, title) {
+    reset();
+    current = url;
+    triedHls = false;
+    idle.classList.add('hide');
+    say(title || '');
+    setTimeout(() => { if (msg.textContent === (title || '')) say(''); }, 4000);
+    state = 'TRANSITIONING';
+    const isHls = /\.m3u8(\?|#|$)/i.test(url) || /mpegurl/i.test(mime || '');
+    if (!(isHls && viaHls(url))) v.src = url;
+    v.play().catch(() => {});
+  }
+
+  function stop() { reset(); current = null; state = 'STOPPED'; idle.classList.remove('hide'); say(''); }
+
+  v.addEventListener('playing', () => { state = 'PLAYING'; });
+  v.addEventListener('pause', () => { if (!v.ended && state !== 'STOPPED' && state !== 'TRANSITIONING') state = 'PAUSED_PLAYBACK'; });
+  v.addEventListener('ended', () => { state = 'STOPPED'; idle.classList.remove('hide'); });
+  v.addEventListener('waiting', () => { if (state === 'PLAYING') state = 'TRANSITIONING'; });
+  v.addEventListener('error', () => {
+    // Sin extensión ni MIME fiable: se reintenta como HLS antes de rendirse.
+    if (current && !triedHls && viaHls(current)) { v.play().catch(() => {}); return; }
+    state = 'STOPPED';
+    say(es ? 'Formato no compatible con este PC.' : 'Format not supported on this PC.');
+  });
+
+  setInterval(() => {
+    const dur = isFinite(v.duration) ? v.duration : 0;
+    const status = [v.currentTime || 0, dur, state, Math.round(v.volume * 100), v.muted ? 1 : 0].join('|');
+    if (window.chrome && chrome.webview) chrome.webview.postMessage(status); // Windows (WebView2)
+    else if (window.HPlayBridge) HPlayBridge.status(status);                 // Android TV (WebView)
+  }, 500);
+
+  window.hplay = {
+    load,
+    stop,
+    setInfo,
+    play: () => v.play().catch(() => {}),
+    pause: () => v.pause(),
+    seek: s => { v.currentTime = s; },
+    volume: x => { v.volume = Math.max(0, Math.min(1, x / 100)); },
+    mute: m => { v.muted = !!m; },
+  };
+
+  if (location.hash.length > 1) load(decodeURIComponent(location.hash.slice(1)), params.get('mime') || '', params.get('title') || '');
+</script>
+</body>
+</html>

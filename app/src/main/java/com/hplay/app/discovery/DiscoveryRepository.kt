@@ -77,7 +77,7 @@ class DiscoveryRepository(private val ctx: Context, private val scope: Coroutine
         val caps = mutableSetOf<Cap>()
         if (d.avTransport != null) caps += Cap.DLNA
         if (hit.st == "roku:ecp" || d.deviceType.contains("roku", true) || d.manufacturer.contains("roku", true)) caps += Cap.ROKU
-        val isHplay = d.deviceType.startsWith(Ssdp.HPLAY_RECEIVER.substringBeforeLast(':'))
+        val isHplay = d.deviceType.startsWith(Ssdp.HPLAY_RECEIVER.substringBeforeLast(':')) || d.model == "HPlay Receiver"
         if (isHplay) caps += Cap.HPLAY
         if (caps.isEmpty()) return // routers, NAS, etc.: no reproducen nada
         val sinks = d.connectionManager?.let { cm -> runCatching { DlnaRemote.protocolInfo(cm) }.getOrNull() }

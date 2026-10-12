@@ -29,6 +29,8 @@ android {
             if (ksPath != null) signingConfig = signingConfigs.getByName("release")
         }
     }
+    // Reproductor compartido con el receptor de Windows (player.html + hls.js).
+    sourceSets["main"].assets.srcDirs("src/main/assets", "../shared")
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
