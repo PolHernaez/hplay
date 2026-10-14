@@ -122,7 +122,7 @@ class DiscoveryRepository(private val ctx: Context, private val scope: Coroutine
         Cap.HPLAY in d.caps -> 0
         Cap.DLNA in d.caps -> 1
         Cap.ROKU in d.caps -> 2
-        Cap.FCAST in d.caps -> 2
+        Cap.FCAST in d.caps || Cap.KODI in d.caps || Cap.CAST in d.caps -> 2
         else -> 3
     }
 }

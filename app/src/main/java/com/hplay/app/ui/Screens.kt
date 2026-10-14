@@ -209,6 +209,7 @@ private fun capLabel(c: Cap) = when (c) {
     Cap.ANDROID_TV -> "Android TV"
     Cap.HPLAY -> stringResource(R.string.cap_hplay)
     Cap.FCAST -> "FCast"
+    Cap.KODI -> "Kodi"
     Cap.MANUAL -> stringResource(R.string.cap_manual)
 }
 

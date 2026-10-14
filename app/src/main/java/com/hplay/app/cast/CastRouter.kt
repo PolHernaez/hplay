@@ -40,6 +40,9 @@ object CastRouter {
             }
             return Result(R.string.route_qr, null, R.string.err_dlna_failed)
         }
+        if (Cap.CAST in device.caps && waitSegments(server)) {
+            tryCast(device, server.hlsUrl(ip), "application/x-mpegURL", "HPlay", live = true)?.let { return Result(R.string.route_cast_mirror, it) }
+        }
         if (Cap.ROKU in device.caps && waitSegments(server)) {
             val roku = RokuRemote(device.ip)
             if (runCatching { roku.load(server.hlsUrl(ip), "HPlay", hls = true) }.isSuccess) return Result(R.string.route_roku, roku)
@@ -65,6 +68,12 @@ object CastRouter {
             tryFcast(device, url, mime, headers)?.let { return Result(R.string.route_fcast, it) }
         }
 
+        // Kodi: las cabeceras van en la propia URL (url|Referer=…), tampoco hace falta el móvil.
+        if (Cap.KODI in device.caps) {
+            val k = KodiRemote(device.ip, device.ports[Cap.KODI] ?: 8080)
+            if (runCatching { k.load(url, headers) }.isSuccess && waitPlaying { k.status().playing }) return Result(R.string.route_kodi, k)
+        }
+
         // Las cookies o la autorización no viajan si la tele pide la URL directamente.
         val needsProxy = headers.keys.any { it.equals("cookie", true) || it.equals("authorization", true) }
         val candidates = if (needsProxy) listOf(proxied) else listOf(url, proxied)
@@ -86,12 +95,33 @@ object CastRouter {
             val roku = RokuRemote(device.ip)
             if (runCatching { roku.load(candidates.first(), title, hls) }.isSuccess) return Result(R.string.route_roku_video, roku)
         }
+        // Chromecast / Google TV (Default Media Receiver): sin cabeceras, así que primero la URL original y luego el proxy.
+        if (Cap.CAST in device.caps) {
+            val mime = if (hls) "application/x-mpegURL" else MediaProxy.guessType(url).takeIf { it != "application/octet-stream" } ?: "video/mp4"
+            for (u in candidates) tryCast(device, u, mime, title, live = false)?.let { return Result(R.string.route_cast, it) }
+        }
         return Result(R.string.route_browser_video, browser)
+    }
+
+    private fun waitPlaying(timeoutMs: Long = 10_000, playing: () -> Boolean): Boolean {
+        val end = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < end) {
+            if (runCatching(playing).getOrDefault(false)) return true
+            Thread.sleep(400)
+        }
+        return false
+    }
+
+    private fun tryCast(device: Device, url: String, mime: String, title: String, live: Boolean): CastRemote? {
+        val r = runCatching { CastRemote(device.ip) }.getOrNull() ?: return null
+        if (runCatching { r.load(url, mime, title, live) }.isSuccess && waitPlaying(15_000) { r.idleReason == null && r.status().playing }) return r
+        r.stop()
+        return null
     }
 
     /** Vale si el receptor llega a reproducir (o al menos no se queja) en 10 s. */
     private fun tryFcast(device: Device, url: String, mime: String, headers: Map<String, String>): FcastRemote? {
-        val r = runCatching { FcastRemote(device.ip, device.fcastPort ?: 46899) }.getOrNull() ?: return null
+        val r = runCatching { FcastRemote(device.ip, device.ports[Cap.FCAST] ?: 46899) }.getOrNull() ?: return null
         runCatching { r.load(url, mime, headers) }.onFailure { r.stop(); return null }
         val end = System.currentTimeMillis() + 10_000
         while (System.currentTimeMillis() < end) {

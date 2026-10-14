@@ -12,7 +12,7 @@ import kotlin.coroutines.resume
 
 /**
  * mDNS/DNS-SD con NsdManager. Solo sirve para saber qué hay y qué anuncia
- * (Google Cast, AirPlay, RAOP, Android TV) y dónde hay receptores FCast.
+ * (Google Cast, AirPlay, RAOP, Android TV) y dónde hay receptores FCast y Kodi.
  */
 class Mdns(private val nsd: NsdManager, private val scope: CoroutineScope, private val onFound: (Device) -> Unit) {
     private val types = mapOf(
@@ -21,6 +21,7 @@ class Mdns(private val nsd: NsdManager, private val scope: CoroutineScope, priva
         "_raop._tcp." to Cap.RAOP,
         "_androidtvremote2._tcp." to Cap.ANDROID_TV,
         "_fcast._tcp." to Cap.FCAST,
+        "_xbmc-jsonrpc-h._tcp." to Cap.KODI,
     )
     private val listeners = mutableListOf<NsdManager.DiscoveryListener>()
     private val pending = Channel<Pair<NsdServiceInfo, Cap>>(Channel.UNLIMITED)
@@ -66,6 +67,6 @@ class Mdns(private val nsd: NsdManager, private val scope: CoroutineScope, priva
         val attrs = resolved.attributes
         fun attr(k: String) = attrs[k]?.toString(Charsets.UTF_8).orEmpty()
         val name = attr("fn").ifBlank { resolved.serviceName.substringAfter('@') }
-        onFound(Device(ip = ip, name = name, model = if (cap == Cap.CAST) attr("md") else attr("am").ifBlank { attr("model") }, caps = setOf(cap), fcastPort = resolved.port.takeIf { cap == Cap.FCAST }))
+        onFound(Device(ip = ip, name = name, model = if (cap == Cap.CAST) attr("md") else attr("am").ifBlank { attr("model") }, caps = setOf(cap), ports = if (cap == Cap.FCAST || cap == Cap.KODI) mapOf(cap to resolved.port) else emptyMap()))
     }
 }
