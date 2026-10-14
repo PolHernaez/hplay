@@ -1,6 +1,6 @@
 # HPlay — documentación viva
 
-> Última actualización: 2026-10-15 · versión 1.7 · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
+> Última actualización: 2026-10-15 · versión 1.7.1 · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
 
 ## 0. Estado
 
@@ -189,6 +189,10 @@ Actualizadores (móvil y tele: módulo `:updater`; Windows: `receivers/windows/A
 La v1.0 se firmó con clave de prueba: quien la tenga debe desinstalarla una vez. Desde la v1.1 todo se actualiza solo.
 
 ## 10. Registro de cambios
+
+- **2026-10-15 · 1.7.1** — Monitor DNS: si otra app está como «VPN siempre activa» (p. ej. NoAds) Android cierra el
+  diálogo de permiso sin mostrarlo, aunque esa VPN esté apagada desde su app (visto en el móvil de Pol). Ahora el detector
+  lo distingue de un «Cancelar» (respuesta en <1,5 s), lo explica y ofrece abrir los ajustes de VPN. Solo una VPN a la vez.
 
 - **2026-10-15 · 1.7** — **Detector multimedia** (paquete `detect/`, pantalla nueva):
   - Receptor DLNA de diagnóstico «HPlay · Detector» (puerto 8768, servicio `connectedDevice`): no reproduce; guarda URL,

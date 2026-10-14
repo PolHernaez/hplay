@@ -75,8 +75,18 @@ fun DetectorScreen(vm: MainViewModel) {
     BackHandler(onBack = back)
 
     val vpnDenied = stringResource(R.string.det_vpn_denied)
+    // Si otra app es «VPN siempre activa», Android cierra el diálogo sin mostrarlo (CANCELED al instante), aunque esa
+    // VPN esté apagada desde su app. Se distingue de un «Cancelar» del usuario por el tiempo.
+    var consentAt by remember { mutableStateOf(0L) }
+    var vpnBlocked by remember { mutableStateOf(false) }
     val vpnConsent = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        if (r.resultCode == android.app.Activity.RESULT_OK) DnsVpnService.start(ctx) else Toast.makeText(ctx, vpnDenied, Toast.LENGTH_LONG).show()
+        val instant = android.os.SystemClock.elapsedRealtime() - consentAt < 1_500
+        vpnBlocked = r.resultCode != android.app.Activity.RESULT_OK && instant
+        when {
+            r.resultCode == android.app.Activity.RESULT_OK -> DnsVpnService.start(ctx)
+            instant -> MediaDetector.log("DNS: Android closed the VPN dialog without showing it (another app is set as always-on VPN?)")
+            else -> Toast.makeText(ctx, vpnDenied, Toast.LENGTH_LONG).show()
+        }
     }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -100,9 +110,19 @@ fun DetectorScreen(vm: MainViewModel) {
                 title = stringResource(R.string.det_dns), hint = stringResource(R.string.det_dns_hint), on = dnsOn,
                 onToggle = {
                     if (dnsOn) DnsVpnService.stop(ctx)
-                    else VpnService.prepare(ctx)?.let { vpnConsent.launch(it) } ?: DnsVpnService.start(ctx)
+                    else VpnService.prepare(ctx)?.let { consentAt = android.os.SystemClock.elapsedRealtime(); vpnConsent.launch(it) } ?: DnsVpnService.start(ctx)
                 },
             )
+        }
+        if (vpnBlocked && !dnsOn) item {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(stringResource(R.string.det_vpn_blocked), fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
+                    OutlinedButton(onClick = {
+                        runCatching { ctx.startActivity(Intent(android.provider.Settings.ACTION_VPN_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    }) { Text(stringResource(R.string.det_vpn_settings)) }
+                }
+            }
         }
 
         item {

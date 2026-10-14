@@ -119,4 +119,6 @@
     <string name="det_show_relevant">Ver solo los de vídeo (%1$d en total)</string>
     <string name="det_log">Registro técnico</string>
     <string name="det_vpn_denied">No se concedió el permiso de VPN.</string>
+    <string name="det_vpn_blocked">Android cerró la petición de VPN sin mostrarla. Pasa cuando otra app (por ejemplo NoAds) está como «VPN siempre activa» en los ajustes de Android, aunque la hayas apagado desde esa app. Solo puede haber una VPN a la vez: abre los ajustes de VPN, toca el engranaje de esa app y desactiva «VPN siempre activa». El receptor DLNA no necesita la VPN.</string>
+    <string name="det_vpn_settings">Abrir ajustes de VPN</string>
 </resources>
