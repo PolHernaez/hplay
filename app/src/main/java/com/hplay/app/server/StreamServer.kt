@@ -31,7 +31,10 @@ class StreamServer(
     val hub: MediaHub,
     private val profiles: ProfileCache,
 ) : MediaHub.Sink {
-    val token = Net.newToken()
+    /** Código fijo por instalación: la tele deja la web abierta y se reconecta sola en cada sesión, como la app. */
+    val token: String = ctx.getSharedPreferences("server", Context.MODE_PRIVATE).run {
+        getString("token", null) ?: Net.newToken().also { edit().putString("token", it).apply() }
+    }
     var port = 0
         private set
     private val http = HttpServer(scope, ::route)
@@ -200,10 +203,11 @@ class StreamServer(
         val writer = scope.launch(Dispatchers.IO) {
             try {
                 while (true) {
-                    // Sin datos 5 s → ping, así se detectan teles que se apagan sin cerrar.
+                    // Sin datos 5 s → mensaje de texto: detecta teles que se apagan sin cerrar y, a diferencia de un PING,
+                    // el JS lo ve (si no, el receptor cerraba a los 12 s y volvía a empezar el vídeo).
                     val msg = withTimeoutOrNull(5_000) { client.queue.receiveCatching() }
                     if (msg != null && msg.isClosed) break
-                    out.write(msg?.getOrNull() ?: WebSocket.frame(WebSocket.PING, ByteArray(0)))
+                    out.write(msg?.getOrNull() ?: KEEPALIVE)
                     out.flush()
                 }
             } catch (_: Exception) {
@@ -228,6 +232,8 @@ class StreamServer(
             writer.cancel()
         }
     }
+
+    private val KEEPALIVE = WebSocket.frame(WebSocket.TEXT, "{\"type\":\"ka\"}".toByteArray())
 
     private fun onClientText(text: String, ip: String) {
         val o = runCatching { JSONObject(text) }.getOrNull() ?: return

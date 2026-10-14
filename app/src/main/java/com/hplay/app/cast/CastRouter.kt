@@ -57,7 +57,13 @@ object CastRouter {
     fun sendUrl(server: StreamServer, device: Device?, url: String, headers: Map<String, String>, title: String): Result {
         val hls = isHls(url)
         val proxied = server.proxy.register(url, headers)
-        server.setState(JSONObject().put("type", "url").put("src", server.proxy.pathOf(proxied)).put("kind", if (hls) "hls" else "file").put("title", title))
+        // Receptor web: si el enlace es de YouTube, su reproductor oficial incrustado; si no, primero la URL directa
+        // (la tele la pide sola y el móvil puede apagarse) y el proxy solo si falla.
+        val yt = AppLinks.parse(url)?.takeIf { it.service == Service.YOUTUBE && it.id != null }
+        server.setState(
+            if (yt != null) JSONObject().put("type", "youtube").put("id", yt.id).put("title", title)
+            else JSONObject().put("type", "url").put("src", server.proxy.pathOf(proxied)).put("direct", url).put("kind", if (hls) "hls" else "file").put("title", title)
+        )
         val browser = BrowserRemote(server)
         device ?: return Result(R.string.route_browser_video, browser)
 

@@ -114,6 +114,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun send(m: Media) {
+        // Sin aparato (navegador de la tele): YouTube se reproduce en la propia web con su reproductor oficial.
+        if (m.app != null && selectedIp.value == null && m.app.service == com.hplay.app.cast.Service.YOUTUBE) {
+            HPlayService.sendUrl(getApplication(), m.app.url, emptyMap(), m.title, null)
+            screen.value = Screen.HOME
+            return
+        }
         if (m.app != null) {
             notice.value = R.string.app_opening
             viewModelScope.launch(Dispatchers.IO) { notice.value = AppLauncher.launch(discovery.get(selectedIp.value), m.app) }

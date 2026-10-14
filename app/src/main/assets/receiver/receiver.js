@@ -4,7 +4,8 @@
  *   1. MSE + jmuxer (H.264 Baseline + AAC por WebSocket)  → <1 s
  *   2. MSE sin audio si el AAC falla                       → <1 s, sin sonido
  *   3. HLS nativo del navegador (/live.m3u8)               → 3–6 s
- * Para vídeo por URL: <video src> nativo, o hls.js si no hay HLS nativo pero sí MSE.
+ * Para vídeo por URL: primero la URL original (la tele la pide sola: el móvil puede apagarse) y, si falla, el proxy
+ * del móvil; <video src> nativo, o hls.js si no hay HLS nativo pero sí MSE. YouTube: su reproductor incrustado.
  */
 (function () {
   'use strict';
@@ -38,7 +39,7 @@
     hls: !!(v.canPlayType && v.canPlayType('application/vnd.apple.mpegurl'))
   };
 
-  var ws = null, jm = null, hls = null, state = null, retry = 1000, lastData = 0, audioBroken = false, withAudio = false, hideTimer = null;
+  var ws = null, jm = null, hls = null, yt = null, failTimer = null, state = null, retry = 1000, lastData = 0, audioBroken = false, withAudio = false, hideTimer = null;
 
   function show(text, keep) {
     msg.textContent = text;
@@ -50,6 +51,9 @@
   function teardown() {
     if (jm) { try { jm.destroy(); } catch (e) {} jm = null; }
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+    if (yt) { yt.parentNode.removeChild(yt); yt = null; }
+    v.onerror = null;
+    clearTimeout(failTimer);
     v.removeAttribute('src');
     try { v.load(); } catch (e) {}
   }
@@ -86,15 +90,43 @@
     show('');
   }
 
-  function startUrl(src, kind) {
+  /** Primero la URL directa; si el navegador no puede (cabeceras, CORS…), la del proxy del móvil. */
+  function startUrl(o) {
+    if (o.direct) playUrl(o.direct, o.kind, function () { playUrl(o.src, o.kind); });
+    else playUrl(o.src, o.kind);
+  }
+
+  function startYoutube(id) {
     teardown();
+    yt = document.createElement('iframe');
+    yt.src = 'https://www.youtube.com/embed/' + encodeURIComponent(id) + '?autoplay=1&enablejsapi=1&playsinline=1';
+    yt.setAttribute('allow', 'autoplay; fullscreen');
+    yt.setAttribute('allowfullscreen', '');
+    yt.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;border:0';
+    document.body.appendChild(yt);
+    show('');
+  }
+
+  function ytCmd(func, args) {
+    if (yt) yt.contentWindow.postMessage(JSON.stringify({ event: 'command', func: func, args: args || [] }), '*');
+  }
+
+  function playUrl(src, kind, onFail) {
+    teardown();
+    var failed = false;
+    function fail() { if (!failed && onFail) { failed = true; onFail(); } }
+    v.onerror = fail;
+    // Una IP inalcanzable no da error hasta pasado mucho rato: si en 7 s no ha empezado, se pasa al proxy.
+    if (onFail) failTimer = setTimeout(function () { if (!v.currentTime) { if (hls) { hls.destroy(); hls = null; } fail(); } }, 7000);
     // hls.js antes que el HLS «nativo»: algunos Chromium dicen «maybe» y luego fallan.
     if (kind === 'hls' && caps.mse) {
       loadScript(base + 'hls.light.min.js', function () {
         if (!window.Hls || !window.Hls.isSupported()) { v.src = src; tryPlay(); return; }
         hls = new window.Hls();
         hls.on(window.Hls.Events.ERROR, function (ev, data) {
-          if (data && data.fatal && caps.hls) { hls.destroy(); hls = null; v.src = src; tryPlay(); }
+          if (!data || !data.fatal) return;
+          if (onFail) { hls.destroy(); hls = null; fail(); }
+          else if (caps.hls) { hls.destroy(); hls = null; v.src = src; tryPlay(); }
         });
         hls.loadSource(src);
         hls.attachMedia(v);
@@ -118,9 +150,28 @@
 
   function onText(o) {
     if (o.type === 'mirror') { state = o; startMirror(!!o.audio); }
-    else if (o.type === 'url') { state = o; startUrl(o.src, o.kind); }
+    else if (o.type === 'url') {
+      // Al reconectar llega el mismo estado: si ya se está reproduciendo, no se vuelve a empezar.
+      var same = state && state.type === 'url' && state.src === o.src && v.currentSrc;
+      state = o;
+      if (!same) startUrl(o);
+    }
+    else if (o.type === 'youtube') {
+      var sameYt = state && state.type === 'youtube' && state.id === o.id && yt;
+      state = o;
+      if (!sameYt) startYoutube(o.id);
+    }
+    else if (o.type === 'ka') return;
     else if (o.type === 'idle') { state = o; teardown(); show(L.waiting, true); }
     else if (o.type === 'cmd') {
+      if (yt) {
+        if (o.cmd === 'play') ytCmd('playVideo');
+        else if (o.cmd === 'pause') ytCmd('pauseVideo');
+        else if (o.cmd === 'stop') { teardown(); show(L.ended, true); }
+        else if (o.cmd === 'seek') ytCmd('seekTo', [o.value, true]);
+        else if (o.cmd === 'volume') ytCmd('setVolume', [o.value]);
+        return;
+      }
       if (o.cmd === 'play') tryPlay();
       else if (o.cmd === 'pause') v.pause();
       else if (o.cmd === 'stop') { teardown(); show(L.ended, true); }
@@ -139,7 +190,7 @@
   }
 
   function connect() {
-    show(L.connecting, true);
+    if (!(state && (state.type === 'url' || state.type === 'youtube'))) show(L.connecting, true);
     var url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + base + 'ws';
     try { ws = new WebSocket(url); } catch (e) { return retryLater(); }
     ws.binaryType = 'arraybuffer';
@@ -158,7 +209,8 @@
   }
 
   function retryLater() {
-    show(L.reconnect, true);
+    // Con un vídeo en marcha (el móvil puede estar apagado) no se avisa: la imagen sigue sola.
+    if (!(state && (state.type === 'url' || state.type === 'youtube'))) show(L.reconnect, true);
     setTimeout(connect, retry);
     retry = Math.min(retry * 2, 5000);
   }
