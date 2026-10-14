@@ -26,10 +26,18 @@ object AppLauncher {
             val q = link.id?.let { "?contentId=${URLEncoder.encode(it, "UTF-8")}&mediaType=${if (link.service == Service.YOUTUBE) "live" else "movie"}" }.orEmpty()
             return if (runCatching { post("http://${device.ip}:8060/launch/$ch$q", "") }.getOrDefault(-1) in 200..299) R.string.app_opened else R.string.app_failed
         }
+        // DIAL (especificación abierta de Netflix/YouTube): muchas teles LG, Samsung, Sony… sin instalar nada.
+        val dialName = when (link.service) { Service.YOUTUBE -> "YouTube"; Service.NETFLIX -> "Netflix"; else -> null }
+        if (Cap.DIAL in device.caps && device.dialUrl != null && dialName != null) {
+            // shortcut: el cuerpo «v=ID» de YouTube lo documenta la comunidad, no YouTube; Netflix solo se abre.
+            val body = if (link.service == Service.YOUTUBE && link.id != null) "v=${link.id}" else ""
+            val code = runCatching { post(device.dialUrl + dialName, body, origin = "https://www.youtube.com".takeIf { dialName == "YouTube" }) }.getOrDefault(-1)
+            return when (code) { 200, 201 -> R.string.app_opened; 404 -> R.string.app_not_installed; else -> R.string.app_failed }
+        }
         return R.string.app_not_supported
     }
 
-    private fun post(url: String, body: String): Int {
+    private fun post(url: String, body: String, origin: String? = null): Int {
         val b = body.toByteArray()
         val c = URL(url).openConnection() as HttpURLConnection
         c.requestMethod = "POST"
@@ -37,6 +45,7 @@ object AppLauncher {
         c.readTimeout = 8_000
         c.doOutput = true
         c.setRequestProperty("Content-Type", "text/plain; charset=utf-8")
+        origin?.let { c.setRequestProperty("Origin", it) } // algunas teles (Roku) rechazan el DIAL de YouTube sin él
         c.setFixedLengthStreamingMode(b.size)
         return try { c.outputStream.use { it.write(b) }; c.responseCode } finally { c.disconnect() }
     }

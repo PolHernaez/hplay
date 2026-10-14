@@ -1,7 +1,7 @@
 package com.hplay.app.discovery
 
 /** Qué sabe hacer un aparato. Los nombres comerciales solo se usan como descripción de compatibilidad. */
-enum class Cap { DLNA, ROKU, CAST, AIRPLAY, RAOP, ANDROID_TV, HPLAY, FCAST, KODI, MANUAL }
+enum class Cap { DLNA, ROKU, CAST, AIRPLAY, RAOP, ANDROID_TV, HPLAY, FCAST, KODI, DIAL, MANUAL }
 
 data class Device(
     /** Clave única: la IP (así se fusionan SSDP, mDNS y la entrada manual del mismo aparato). */
@@ -17,6 +17,8 @@ data class Device(
     val hplayUrl: String? = null,
     /** ProtocolInfo «Sink» del ConnectionManager (formatos que la tele dice aceptar). */
     val sinks: List<String> = emptyList(),
+    /** DIAL (abrir YouTube/Netflix de la tele): cabecera Application-URL de la descripción. */
+    val dialUrl: String? = null,
     /** Puertos anunciados por mDNS (FCast, Kodi). */
     val ports: Map<Cap, Int> = emptyMap(),
 ) {
@@ -32,6 +34,7 @@ data class Device(
         hplayUrl = hplayUrl ?: o.hplayUrl,
         sinks = sinks.ifEmpty { o.sinks },
         ports = o.ports + ports,
+        dialUrl = dialUrl ?: o.dialUrl,
     )
 
     val profile get() = SinkProfile(sinks)

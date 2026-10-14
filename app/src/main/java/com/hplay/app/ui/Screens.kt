@@ -213,6 +213,7 @@ private fun capLabel(c: Cap) = when (c) {
     Cap.HPLAY -> stringResource(R.string.cap_hplay)
     Cap.FCAST -> "FCast"
     Cap.KODI -> "Kodi"
+    Cap.DIAL -> "DIAL"
     Cap.MANUAL -> stringResource(R.string.cap_manual)
 }
 

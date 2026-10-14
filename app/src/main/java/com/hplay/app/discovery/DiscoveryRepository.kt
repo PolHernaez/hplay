@@ -72,7 +72,7 @@ class DiscoveryRepository(private val ctx: Context, private val scope: Coroutine
     }
 
     private fun describe(hit: Ssdp.Hit) {
-        val xml = runCatching { fetch(hit.location) }.getOrNull() ?: return
+        val (xml, dialUrl) = runCatching { fetch(hit.location) }.getOrNull() ?: return
         val d = runCatching { UpnpDescription.parse(xml, hit.location) }.getOrNull() ?: return
         val caps = mutableSetOf<Cap>()
         if (d.avTransport != null) caps += Cap.DLNA
@@ -81,6 +81,7 @@ class DiscoveryRepository(private val ctx: Context, private val scope: Coroutine
         if (isHplay) caps += Cap.HPLAY
         // Receptores HPlay 1.5+: FCast en 46899 (se comprueba porque el mDNS no siempre cruza la red).
         if (isHplay && runCatching { java.net.Socket().use { it.connect(java.net.InetSocketAddress(hit.ip, 46899), 600) } }.isSuccess) caps += Cap.FCAST
+        if (dialUrl != null) caps += Cap.DIAL
         if (caps.isEmpty()) return // routers, NAS, etc.: no reproducen nada
         val sinks = d.connectionManager?.let { cm -> runCatching { DlnaRemote.protocolInfo(cm) }.getOrNull() }
             ?.also { profiles.updateSinks(hit.ip, it) }
@@ -97,15 +98,17 @@ class DiscoveryRepository(private val ctx: Context, private val scope: Coroutine
                 connectionManagerUrl = d.connectionManager,
                 hplayUrl = if (isHplay) URL(URL(hit.location), "/").toString() else null,
                 sinks = sinks,
+                dialUrl = dialUrl?.let { if (it.endsWith("/")) it else "$it/" },
             )
         )
     }
 
-    private fun fetch(url: String): String {
+    /** Descripción UPnP y, si la tele es DIAL, su Application-URL. */
+    private fun fetch(url: String): Pair<String, String?> {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 2_500
         c.readTimeout = 3_000
-        return try { c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) } } finally { c.disconnect() }
+        return try { c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) } to c.getHeaderField("Application-URL") } finally { c.disconnect() }
     }
 
     private fun upsert(d: Device) {

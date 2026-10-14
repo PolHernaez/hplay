@@ -14,6 +14,7 @@ object Ssdp {
         "urn:schemas-upnp-org:device:MediaRenderer:1",
         "urn:schemas-upnp-org:service:AVTransport:1",
         "roku:ecp",
+        "urn:dial-multiscreen-org:service:dial:1",
         HPLAY_RECEIVER,
         "ssdp:all",
     )
