@@ -1,6 +1,6 @@
 # HPlay — documentación viva
 
-> Última actualización: 2026-10-15 · versión 1.6 (+ detector multimedia sin publicar) · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
+> Última actualización: 2026-10-15 · versión 1.7 · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
 
 ## 0. Estado
 
@@ -18,7 +18,7 @@
 - **Play Shots**: receptores con ráfaga NOTIFY tras cada búsqueda (1.4); pendiente de confirmar en el móvil real.
 - **1.5**: apps oficiales en la tele, FCast, Chromecast, Kodi, DIAL y navegador de la tele como receptor (con puente
   DLNA en el móvil). Probado en emulador y PC; Chromecast, Kodi, Roku y DIAL pendientes de hardware.
-- **Detector multimedia** (2026-10-15, sin publicar): receptor DLNA «HPlay · Detector», monitor DNS por VPN local,
+- **Detector multimedia** (2026-10-15, 1.7): receptor DLNA «HPlay · Detector», monitor DNS por VPN local,
   «Abrir con»/«Compartir» con cabeceras y comprobación de disponibilidad. Probado en el emulador `hplay_play` (API 34) con
   Play Shots V3.0.0 instalado; ver §11. 34 tests unitarios pasan.
 - **Sin probar todavía con hardware real**: teles DLNA (LG/Samsung/Sony…), Roku, webOS/Tizen, móviles ColorOS/MIUI.
@@ -190,7 +190,7 @@ La v1.0 se firmó con clave de prueba: quien la tenga debe desinstalarla una vez
 
 ## 10. Registro de cambios
 
-- **2026-10-15 · 1.7 (pendiente de publicar)** — **Detector multimedia** (paquete `detect/`, pantalla nueva):
+- **2026-10-15 · 1.7** — **Detector multimedia** (paquete `detect/`, pantalla nueva):
   - Receptor DLNA de diagnóstico «HPlay · Detector» (puerto 8768, servicio `connectedDevice`): no reproduce; guarda URL,
     DIDL (MIME, título, duración, resolución), User-Agent e IP:puerto del emisor. El puente «navegador de la tele» también
     lo registra. `DlnaDevice` gana `onControl` y los extremos TCP en `Req` (la app de TV no cambia).
