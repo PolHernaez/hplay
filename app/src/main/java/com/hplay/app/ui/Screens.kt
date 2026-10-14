@@ -15,6 +15,8 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.webkit.ServiceWorkerClientCompat
+import androidx.webkit.ServiceWorkerControllerCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import androidx.activity.compose.BackHandler
@@ -110,6 +112,7 @@ fun MainScreen(vm: MainViewModel, onMirror: () -> Unit, onUpdate: () -> Unit) {
             MainViewModel.Screen.HOME -> HomeScreen(vm, onMirror, onUpdate)
             MainViewModel.Screen.BROWSER -> BrowserScreen(vm)
             MainViewModel.Screen.BATTERY -> BatteryScreen { vm.screen.value = MainViewModel.Screen.HOME }
+            MainViewModel.Screen.DETECTOR -> DetectorScreen(vm)
         }
     }
 }
@@ -161,6 +164,11 @@ private fun HomeScreen(vm: MainViewModel, onMirror: () -> Unit, onUpdate: () -> 
             val ctx = LocalContext.current
             OutlinedButton(onClick = { com.hplay.app.capture.HPlayService.relay(ctx) }, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(16.dp)) {
                 Text(stringResource(R.string.relay_button), fontSize = 18.sp)
+            }
+        }
+        item {
+            OutlinedButton(onClick = { vm.screen.value = MainViewModel.Screen.DETECTOR }, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(16.dp)) {
+                Text(stringResource(R.string.detector_title), fontSize = 18.sp)
             }
         }
         item { Text(stringResource(R.string.drm_notice), fontSize = 13.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)) }
@@ -379,6 +387,19 @@ private fun BrowserScreen(vm: MainViewModel) {
                         addJavascriptInterface(object {
                             @JavascriptInterface fun media(url: String, mime: String, page: String) = vm.onScriptMedia(url, mime, page)
                         }, "HPlayDetect")
+                        // Peticiones de los service workers (algunos reproductores web piden ahí el manifiesto): no pasan
+                        // por el WebViewClient. Mismo criterio: solo se observan los GET.
+                        if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE)) {
+                            ServiceWorkerControllerCompat.getInstance().setServiceWorkerClient(object : ServiceWorkerClientCompat() {
+                                override fun shouldInterceptRequest(request: WebResourceRequest): WebResourceResponse? {
+                                    val url = request.url.toString()
+                                    val headers = HashMap(request.requestHeaders)
+                                    CookieManager.getInstance().getCookie(url)?.let { headers["Cookie"] = it }
+                                    if (request.method == "GET") vm.onRequest(url, headers)
+                                    return null
+                                }
+                            })
+                        }
                         // Antes que los scripts de la página: así se ven también los fetch que hace al cargar.
                         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
                             WebViewCompat.addDocumentStartJavaScript(this, DETECT_JS, setOf("*"))

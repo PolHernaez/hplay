@@ -11,6 +11,8 @@ import com.hplay.app.cast.AppLauncher
 import com.hplay.app.cast.AppLink
 import com.hplay.app.cast.AppLinks
 import com.hplay.app.cast.Remote
+import com.hplay.app.detect.MediaDetector
+import com.hplay.app.detect.Probe
 import com.hplay.app.hplay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -20,7 +22,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
-    enum class Screen { HOME, BROWSER, BATTERY }
+    enum class Screen { HOME, BROWSER, BATTERY, DETECTOR }
 
     /** Vídeo detectado por el navegador integrado (solo lo que el propio WebView ya pide). */
     data class Media(val url: String, val headers: Map<String, String>, val title: String, val app: AppLink? = null, val mime: String? = null) {
@@ -56,6 +58,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         discovery.start()
+        // Lo que llega de otras apps (DLNA, compartir, «abrir con») se comprueba solo; lo del navegador, al pulsar.
+        viewModelScope.launch {
+            MediaDetector.items.collect { list ->
+                list.filter { it.source != MediaDetector.Source.BROWSER && it.availability == MediaDetector.Availability.UNCHECKED }.forEach(::probe)
+            }
+        }
         viewModelScope.launch(Dispatchers.IO) {
             while (isActive) {
                 val r = remote.value
@@ -79,12 +87,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         screen.value = Screen.BROWSER
     }
 
-    /** Enlace compartido desde otra app: si ya es un vídeo directo, queda listo para enviar. */
-    fun handleShared(url: String) {
+    /**
+     * Enlace compartido («Compartir») o abierto con «Abrir con» desde otra app: si ya es un vídeo directo, queda listo
+     * para enviar. [origin]: paquete que Android declara como emisor (puede faltar). [headers]: los que la app pasa a
+     * un reproductor externo (convención MX Player / MediaRouter).
+     */
+    fun handleShared(url: String, origin: String? = null, headers: Map<String, String> = emptyMap(), title: String = "", mime: String? = null, player: Boolean = false) {
         detected.value = emptyList()
         onPage(url)
-        if (MEDIA.containsMatchIn(url.substringBefore('?'))) detected.update { it + Media(url, emptyMap(), url.substringAfterLast('/')) }
-        openBrowser(url)
+        val kind = MediaDetector.kindOf(url, mime)
+        val isMedia = MEDIA.containsMatchIn(url.substringBefore('?')) || (mime != null && kind != MediaDetector.Kind.UNKNOWN && kind != MediaDetector.Kind.PAGE)
+        MediaDetector.report(
+            if (player) MediaDetector.Source.PLAYER else MediaDetector.Source.SHARE, url, mime,
+            title.ifBlank { url.substringBefore('?').substringAfterLast('/') }, origin ?: "?", headers = headers,
+        )
+        if (isMedia) detected.update { it + Media(url, headers, title.ifBlank { url.substringBefore('?').substringAfterLast('/') }, mime = mime) }
+        if (player && isMedia) screen.value = Screen.DETECTOR else openBrowser(url)
     }
 
     /** Página abierta o enlace compartido de un servicio con app de tele (YouTube, Netflix…): primero de la lista. */
@@ -101,7 +119,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Las listas «master» primero y las de solo audio al final: si no, se mandaba el audio.m3u8 de Pluto y sin imagen. */
-    private fun add(m: Media) = detected.update { list ->
+    private fun add(m: Media) {
+        MediaDetector.report(MediaDetector.Source.BROWSER, m.url, m.mime, m.title, MediaDetector.hostOf(browserUrl.value).ifBlank { "HPlay browser" },
+            client = browserUrl.value, headers = m.headers)
+        addDetected(m)
+    }
+
+    private fun addDetected(m: Media) = detected.update { list ->
         if (list.any { it.url == m.url }) list
         else (listOf(m) + list).sortedBy { rank(it) }.take(20)
     }
@@ -144,6 +168,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun stop() = HPlayService.stop(getApplication())
+
+    // ---------- Detector multimedia ----------
+
+    /** Comprueba si la URL responde, si es vídeo de verdad y si exige las cabeceras recibidas. */
+    fun probe(item: MediaDetector.Item) {
+        if (item.availability == MediaDetector.Availability.CHECKING) return
+        MediaDetector.set(item.id) { it.copy(availability = MediaDetector.Availability.CHECKING) }
+        viewModelScope.launch(Dispatchers.IO) {
+            val r = Probe.check(item.url, item.headers, item.kind, item.expiresAt)
+            MediaDetector.set(item.id) {
+                val mime = it.mime ?: r.mime
+                it.copy(
+                    availability = r.availability, status = r.status, mime = mime, evidence = r.evidence ?: it.evidence,
+                    kind = if (it.kind == MediaDetector.Kind.UNKNOWN) MediaDetector.kindOf(it.url, mime) else it.kind,
+                )
+            }
+            MediaDetector.log("CHECK ${item.domain}: ${r.availability.name} (${r.status})")
+        }
+    }
+
+    /** Al destino elegido en la pantalla principal, por la misma ruta que el navegador (proxy con cabeceras incluido). */
+    fun sendDetected(item: MediaDetector.Item) {
+        send(Media(item.url, item.headers, item.title.ifBlank { "HPlay" }, mime = item.mime))
+        MediaDetector.log("SEND ${item.domain} → ${selectedIp.value ?: "browser/QR"}")
+    }
 
     fun control(action: Remote.() -> Unit) {
         val r = remote.value ?: return

@@ -20,6 +20,7 @@ import kotlin.concurrent.thread
 /**
  * Media Renderer DLNA completo (HTTP de descripción/SOAP/eventos + SSDP), compartido por la app de la tele y por el
  * puente del móvil («navegador de la tele»). [extra] atiende rutas propias (devuelve null si no son suyas).
+ * [onControl] ve cada acción SOAP con la conexión aún abierta (el detector del móvil la usa para saber quién envía).
  */
 class DlnaDevice(
     private val port: Int,
@@ -30,8 +31,13 @@ class DlnaDevice(
     private val server: String,
     private val extraTypes: List<String> = emptyList(),
     private val extra: (Req) -> Reply? = { null },
+    private val onControl: (Req, String) -> Unit = { _, _ -> },
 ) {
-    class Req(val method: String, val path: String, val headers: Map<String, String>, val body: ByteArray)
+    /** [remote]/[local]: extremos de la conexión TCP (para identificar al emisor). */
+    class Req(
+        val method: String, val path: String, val headers: Map<String, String>, val body: ByteArray,
+        val remote: InetSocketAddress? = null, val local: InetSocketAddress? = null,
+    )
     class Reply(val code: Int, val type: String, val body: String)
 
     @Volatile private var running = true
@@ -97,7 +103,9 @@ class DlnaDevice(
     private fun serve(s: Socket) {
         if (!isLan(s.inetAddress)) return
         s.soTimeout = 8_000
-        val req = read(s.getInputStream()) ?: return
+        val req = read(s.getInputStream())?.let {
+            Req(it.method, it.path, it.headers, it.body, s.remoteSocketAddress as? InetSocketAddress, s.localSocketAddress as? InetSocketAddress)
+        } ?: return
         val out = s.getOutputStream()
         fun reply(code: Int, type: String?, body: String, extraHeaders: String = "") {
             val b = body.toByteArray()
@@ -116,6 +124,7 @@ class DlnaDevice(
             "/cm.xml" -> reply(200, xml, Upnp.CM_SCPD)
             "/upnp/control/avt", "/upnp/control/rc", "/upnp/control/cm" -> {
                 val action = req.headers["soapaction"].orEmpty().trim('"', ' ').substringAfterLast('#')
+                runCatching { onControl(req, action) }
                 val (code, body) = renderer.soap(last, action, String(req.body, Charsets.UTF_8))
                 reply(code, xml, body)
             }

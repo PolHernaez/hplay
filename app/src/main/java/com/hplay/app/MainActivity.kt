@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import com.hplay.app.capture.HPlayService
+import com.hplay.app.detect.MediaDetector
 import com.hplay.app.ui.HPlayTheme
 import com.hplay.app.ui.MainScreen
 import com.hplay.app.ui.MainViewModel
@@ -35,7 +36,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             registerForActivityResult(ActivityResultContracts.RequestPermission()) {}.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-        if (savedInstanceState == null) handleIntent(intent)
+        if (savedInstanceState == null) handleIntent(intent, fromCreate = true)
     }
 
     override fun onResume() {
@@ -65,13 +66,29 @@ class MainActivity : ComponentActivity() {
         projection.launch(getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent())
     }
 
-    private fun handleIntent(i: Intent?) {
-        val url = when (i?.action) {
+    private fun handleIntent(i: Intent?, fromCreate: Boolean = false) {
+        if (i == null) return
+        val url = when (i.action) {
             Intent.ACTION_SEND -> i.getStringExtra(Intent.EXTRA_TEXT)?.let { URL_IN_TEXT.find(it)?.value }
             Intent.ACTION_VIEW -> i.dataString
             else -> null
         } ?: return
-        vm.handleShared(url)
+        // Emisor según Android: EXTRA_REFERRER si la app lo pone; si no, el paquete que abrió la Activity (solo fiable
+        // al crearla: en onNewIntent Android no expone el nuevo emisor).
+        val origin = (if (Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(Intent.EXTRA_REFERRER, android.net.Uri::class.java)
+            else @Suppress("DEPRECATION") i.getParcelableExtra(Intent.EXTRA_REFERRER))?.toString()
+            ?: i.getStringExtra(Intent.EXTRA_REFERRER_NAME)
+            ?: referrer?.takeIf { fromCreate }?.toString()
+        val origin2 = origin?.removePrefix("android-app://")?.trimEnd('/')
+        if (i.action == Intent.ACTION_VIEW) {
+            // «Abrir con» un reproductor externo: cabeceras con la convención de MX Player o de MediaRouter.
+            val headers = MediaDetector.headersFromArray(i.getStringArrayExtra("headers")) +
+                (i.getBundleExtra("android.media.intent.extra.HTTP_HEADERS")?.let { b -> b.keySet().associateWith { b.getString(it).orEmpty() } } ?: emptyMap())
+            val title = i.getStringExtra("title") ?: i.getStringExtra(Intent.EXTRA_TITLE) ?: ""
+            vm.handleShared(url, origin2, headers, title, i.type, player = true)
+        } else {
+            vm.handleShared(url, origin2, title = i.getStringExtra(Intent.EXTRA_SUBJECT) ?: i.getStringExtra(Intent.EXTRA_TITLE) ?: "")
+        }
     }
 
     companion object {

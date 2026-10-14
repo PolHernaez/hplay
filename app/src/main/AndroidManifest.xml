@@ -11,6 +11,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Detector multimedia: receptor DLNA de diagnóstico (servicio «connectedDevice», cubierto por CHANGE_WIFI_MULTICAST_STATE)
+         y nombre de la app que hace una consulta DNS (getConnectionOwnerUid, solo con la VPN local de HPlay activa). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
     <application
         android:name=".HPlayApp"
@@ -46,6 +50,7 @@
                 <data android:mimeType="video/*" />
                 <data android:mimeType="application/vnd.apple.mpegurl" />
                 <data android:mimeType="application/x-mpegurl" />
+                <data android:mimeType="application/dash+xml" />
             </intent-filter>
         </activity>
 
@@ -53,5 +58,20 @@
             android:name=".capture.HPlayService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection|mediaPlayback" />
+
+        <service
+            android:name=".detect.DetectorService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <!-- VPN local que solo enruta la IP de un DNS falso: ver qué dominios piden las apps (no URLs ni contenido). -->
+        <service
+            android:name=".detect.DnsVpnService"
+            android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

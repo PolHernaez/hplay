@@ -299,7 +299,10 @@ class HPlayService : Service() {
         val uuid = prefs.getString("relay_uuid", null) ?: java.util.UUID.randomUUID().toString().also { prefs.edit().putString("relay_uuid", it).apply() }
         // Android filtra el multicast entrante salvo con este cerrojo: sin él, las apps no encuentran el puente.
         relayLock = getSystemService(android.net.wifi.WifiManager::class.java).createMulticastLock("hplay-relay").apply { setReferenceCounted(false); acquire() }
-        relay = DlnaDevice(8767, uuid, "HPlay · " + getString(R.string.relay_name), "HPlay Relay", renderer, "Android/${Build.VERSION.RELEASE} UPnP/1.0 HPlay/1.0").apply { start() }
+        relay = DlnaDevice(
+            8767, uuid, "HPlay · " + getString(R.string.relay_name), "HPlay Relay", renderer, "Android/${Build.VERSION.RELEASE} UPnP/1.0 HPlay/1.0",
+            onControl = { req, action -> com.hplay.app.detect.DlnaCapture.onControl(this, getString(R.string.relay_name), req, action) },
+        ).apply { start() }
     }
 
     // ---------- Común ----------

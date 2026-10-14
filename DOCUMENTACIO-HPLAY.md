@@ -1,6 +1,6 @@
 # HPlay — documentación viva
 
-> Última actualización: 2026-10-12 · versión 1.3 · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
+> Última actualización: 2026-10-15 · versión 1.6 (+ detector multimedia sin publicar) · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
 
 ## 0. Estado
 
@@ -18,6 +18,9 @@
 - **Play Shots**: receptores con ráfaga NOTIFY tras cada búsqueda (1.4); pendiente de confirmar en el móvil real.
 - **1.5**: apps oficiales en la tele, FCast, Chromecast, Kodi, DIAL y navegador de la tele como receptor (con puente
   DLNA en el móvil). Probado en emulador y PC; Chromecast, Kodi, Roku y DIAL pendientes de hardware.
+- **Detector multimedia** (2026-10-15, sin publicar): receptor DLNA «HPlay · Detector», monitor DNS por VPN local,
+  «Abrir con»/«Compartir» con cabeceras y comprobación de disponibilidad. Probado en el emulador `hplay_play` (API 34) con
+  Play Shots V3.0.0 instalado; ver §11. 34 tests unitarios pasan.
 - **Sin probar todavía con hardware real**: teles DLNA (LG/Samsung/Sony…), Roku, webOS/Tizen, móviles ColorOS/MIUI.
 
 ## 1. Arquitectura
@@ -115,6 +118,8 @@ Extras: pantalla apagada >5 min con la emisión activa (ColorOS: hacer antes la 
 - **Roku**: el canal 15985 («Play on Roku») debe estar disponible; sin búsqueda ni volumen por ECP.
 - **webOS/Tizen**: hay que instalar en modo desarrollador (abajo); el código del móvil se teclea cada sesión (seguridad).
 - **Batería/calor**: 720p30 por hardware es moderado, pero sesiones largas calientan; recomendable cargador.
+- **Detector multimedia**: solo ve URLs que otra app **entrega** (DLNA, «Compartir», «Abrir con») o que pide el
+  navegador de HPlay. Android no permite leer qué reproduce otra app. El monitor DNS ve dominios, nunca rutas (§11).
 - Probado solo en emulador; ver §0.
 
 ## 6. Apps receptoras opcionales
@@ -185,6 +190,22 @@ La v1.0 se firmó con clave de prueba: quien la tenga debe desinstalarla una vez
 
 ## 10. Registro de cambios
 
+- **2026-10-15 · 1.7 (pendiente de publicar)** — **Detector multimedia** (paquete `detect/`, pantalla nueva):
+  - Receptor DLNA de diagnóstico «HPlay · Detector» (puerto 8768, servicio `connectedDevice`): no reproduce; guarda URL,
+    DIDL (MIME, título, duración, resolución), User-Agent e IP:puerto del emisor. El puente «navegador de la tele» también
+    lo registra. `DlnaDevice` gana `onControl` y los extremos TCP en `Req` (la app de TV no cambia).
+  - Monitor DNS con `VpnService` que **solo** enruta la IP de un DNS falso; resuelve con `DnsResolver.rawQuery` por la red
+    real (sin DNS de terceros) y nombra la app con `getConnectionOwnerUid`. Con la VPN activa también identifica qué app
+    se conecta al receptor DLNA.
+  - «Abrir con» (ACTION_VIEW, ahora también `application/dash+xml`) lee cabeceras en la convención de MX Player
+    (`headers`) y de MediaRouter; «Compartir» guarda el emisor si Android lo declara.
+  - Comprobación de disponibilidad (`Probe`): Range 0–4095, lee el principio (#EXTM3U, MPD, ftyp, EBML, TS), repite sin
+    cabeceras para saber si las exige, y caducidad de URLs firmadas (`expire`, `Expires`, Akamai `exp`, AWS).
+  - Botones copiar / abrir con (pasa las cabeceras) / comprobar / enviar; registro técnico solo en memoria.
+  - Navegador: también se observan las peticiones de los *service workers*.
+  - Probado en emulador: ver §11.
+
+
 - **2026-10-15 · 1.6** — Pruebas reales en el emulador:
   - **Puente DLNA del móvil visible para las apps del mismo móvil**: el grupo multicast y los NOTIFY se hacían solo en la
     interfaz por defecto y las apps que buscan por la Wi-Fi concreta (Play Shots, YAACC) no lo veían. Ahora en todas
@@ -240,3 +261,45 @@ La v1.0 se firmó con clave de prueba: quien la tenga debe desinstalarla una vez
 - **2026-10-12 · 1.0** — Primera versión completa: espejo (navegador, DLNA TS/HLS, Roku, app TV), vídeo por URL con
   proxy, descubrimiento SSDP/mDNS/manual, receptores Android TV/webOS/Tizen, CI. Tras la prueba en emulador: `FramePump`
   (vídeo continuo con pantalla quieta), rutas relativas en el proxy, hls.js preferido a HLS «nativo», audio sin pulsar en la app TV.
+
+## 11. Detector multimedia: qué se puede saber y qué no
+
+Tres niveles que la app nunca mezcla: **conexión** (un dominio en una consulta DNS) → **probablemente vídeo** (dominio
+de un servicio de vídeo o CDN conocido) → **URL reproducible** (una dirección completa que alguien nos entregó o que
+pidió nuestro propio WebView, comprobada leyendo su contenido). Solo el tercer nivel se muestra como «dirección».
+
+| Vía | Qué da | Límite |
+|---|---|---|
+| DLNA/UPnP (`SetAVTransportURI`) | URL completa + DIDL (MIME, título, duración) + IP/User-Agent del emisor | DLNA no lleva cabeceras: si el servidor exige Referer/Cookie, la tele no podrá; la URL puede caducar |
+| «Abrir con» (ACTION_VIEW) | URL + cabeceras si la app usa la convención MX Player/MediaRouter + título | Solo si la app ofrece «reproductor externo» |
+| «Compartir» (ACTION_SEND) | Suele ser el enlace de la **página**, no del vídeo | Emisor solo si Android lo declara (no en `onNewIntent`) |
+| Navegador de HPlay | Todas las peticiones del WebView (marcos, XHR/fetch, `<video>`, service workers) con cabeceras y cookies | `blob:` (MSE) no se envía, pero su manifiesto sí aparece; DRM (Widevine) queda fuera por diseño |
+| VPN local (DNS) | Dominio + app que lo pide | HTTPS/QUIC/HTTP2 cifran la ruta; DoH propio o DNS privado estricto lo esquivan; la caché DNS oculta repeticiones; solo una VPN a la vez |
+| VPN completa (no implementada) | Además IP:puerto y SNI de TLS | Sigue sin ruta ni URL (ECH oculta hasta el SNI); exige pila TCP en espacio de usuario, más batería; descifrar = MITM con certificado propio, que Android 7+ no acepta para apps y queda fuera de los límites legales del proyecto |
+
+**Pruebas del 2026-10-15** (emulador `hplay_play`, API 34):
+- Receptor «HPlay · Detector» visible (`/description.xml`); petición idéntica a la de Cling (User-Agent `Cling/2.0`, DIDL con
+  `protocolInfo`, duración y resolución) → URL, metadatos y emisor correctos; `Play` → 200; comprobación: `206 · HLS`
+  con evidencia «contenido comprobado».
+- Monitor DNS: internet sigue funcionando; consultas atribuidas a `com.android.shell`, `com.shotstv.playshots`
+  (dominios de la app, de anuncios y de su CDN) y `com.android.vending`. Con la VPN activa, la conexión DLNA llegada por
+  `adb forward` se atribuyó a la Shell (`getConnectionOwnerUid`).
+- «Abrir con» con `--esa headers Referer,…`: cabecera recibida, caducidad `expires=` leída («en 12 horas»), el recurso
+  no exigía la cabecera (estado «Disponible», no «solo con cabeceras»).
+- Regresión: «Compartir» un .m3u8 → navegador con el vídeo listo para enviar.
+
+**Play Shots** (`com.shotstv.playshots` V3.0.0): el APK incluye Cling (`org.fourthline.cling`, `DLNACastManager`) y las
+cadenas `SetAVTransportURI`/`CurrentURIMetaData`: su vía de envío es DLNA estándar y entrega la URL al receptor. En esta
+versión del emulador **no aparece ningún botón de enviar** en las pantallas de cortos, ficha ni «Me» (el código está;
+la interfaz que lo abre no se muestra; puede depender de región o configuración remota). Punto exacto del límite: la UI
+de Play Shots, no HPlay. Cuando el botón esté, elegir «HPlay · Detector» deja la URL en el detector. Su vídeo pide
+dominios propios (vistos por DNS), pero un dominio no da la URL. Pendiente: probar en el móvil real de Pol.
+
+**Pelisplanet**: no se ha probado (sin app ni acceso en el entorno de pruebas). Lo que se puede afirmar por el mecanismo:
+si es una **web**, el vídeo suele estar en un reproductor incrustado (iframe de otro dominio) que pide un manifiesto
+HLS/MP4 con token y a menudo con Referer obligatorio. El navegador de HPlay ve esa petición (también dentro de iframes y
+service workers) con sus cabeceras; la URL de la **página** no es la del vídeo, y la del vídeo puede caducar o estar
+ligada a la IP/cookies (el proxy de HPlay lo resuelve si la tele no puede mandar cabeceras). Si es una **app** con
+reproductor nativo, la URL solo sale si ofrece DLNA o «reproductor externo» (HPlay ya se registra para ello, cabeceras
+incluidas). Distintas versiones/espejos pueden usar distintos alojamientos: comprobarlo cada vez con el registro técnico.
+
