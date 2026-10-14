@@ -13,6 +13,7 @@ import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.hplay.updater.UpdateFlow
@@ -42,7 +43,7 @@ import kotlin.concurrent.thread
  *  1. Media Renderer DLNA: aparece en el botón «enviar a la tele» de las apps de vídeo y reproduce la URL que mandan.
  *  2. Receptor HPlay (POST /open): la app HPlay del móvil le abre el duplicado de pantalla sin tocar el mando.
  */
-class ReceiverActivity : Activity(), Renderer.Player {
+class ReceiverActivity : Activity(), Fcast.Player {
     private lateinit var web: WebView
     private lateinit var renderer: Renderer
     private var multicastLock: WifiManager.MulticastLock? = null
@@ -51,6 +52,11 @@ class ReceiverActivity : Activity(), Renderer.Player {
     private var ssdp: MulticastSocket? = null
     private var onPlayer = false
     private var pendingJs: String? = null
+    private lateinit var fcast: Fcast
+    // Cabeceras que pide el emisor FCast (Referer, Cookie…) para el host del vídeo: se añaden en shouldInterceptRequest.
+    @Volatile private var mediaHeaders: Map<String, String> = emptyMap()
+    @Volatile private var mediaHost: String? = null
+    @Volatile private var last = Triple(0.0, 0.0, "STOPPED")
 
     private val uuid by lazy {
         getSharedPreferences("r", MODE_PRIVATE).run {
@@ -85,6 +91,12 @@ class ReceiverActivity : Activity(), Renderer.Player {
                     pendingJs = null
                 }
 
+                override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                    val hs = mediaHeaders
+                    if (hs.isEmpty() || request.url.host != mediaHost || request.method != "GET") return null
+                    return runCatching { fetchWithHeaders(request, hs) }.getOrNull()
+                }
+
                 // Solo el reproductor local y receptores de la red local.
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = !allowed(request.url.toString())
             }
@@ -92,6 +104,7 @@ class ReceiverActivity : Activity(), Renderer.Player {
                 @JavascriptInterface
                 fun status(s: String) {
                     val p = s.split('|')
+                    if (p.size >= 5) last = Triple(p[0].toDoubleOrNull() ?: 0.0, p[1].toDoubleOrNull() ?: 0.0, p[2])
                     if (p.size >= 5) renderer.update(p[0].toDoubleOrNull() ?: 0.0, p[1].toDoubleOrNull() ?: 0.0, p[2], p[3].toIntOrNull() ?: 100, p[4] == "1")
                 }
             }, "HPlayBridge")
@@ -103,6 +116,7 @@ class ReceiverActivity : Activity(), Renderer.Player {
             .createMulticastLock("hplay-receiver").apply { setReferenceCounted(false); acquire() }
         thread(name = "hplay-http") { httpLoop() }
         thread(name = "hplay-ssdp") { ssdpLoop() }
+        fcast = Fcast(this, this, ::isLan).apply { start(name) }
         thread(name = "hplay-alive") {
             // Anuncio al arrancar y cada 60 s: algunos controladores solo escuchan NOTIFY.
             while (running) {
@@ -136,8 +150,28 @@ class ReceiverActivity : Activity(), Renderer.Player {
 
     // ---- Renderer.Player: órdenes que llegan por DLNA ----
 
-    override fun loadMedia(url: String, mime: String, title: String) =
+    override fun loadMedia(url: String, mime: String, title: String) = loadMedia(url, mime, title, emptyMap())
+
+    override fun loadMedia(url: String, mime: String, title: String, headers: Map<String, String>) {
+        mediaHeaders = headers
+        mediaHost = Uri.parse(url).host
         onPlayerJs("hplay.load(${JSONObject.quote(url)}, ${JSONObject.quote(mime)}, ${JSONObject.quote(title)})")
+    }
+
+    override fun status() = last
+
+    /** Pide el recurso con las cabeceras del emisor (el WebView no deja ponerlas desde JS). */
+    private fun fetchWithHeaders(req: WebResourceRequest, extra: Map<String, String>): WebResourceResponse {
+        val c = URL(req.url.toString()).openConnection() as java.net.HttpURLConnection
+        c.connectTimeout = 8_000
+        c.readTimeout = 15_000
+        (req.requestHeaders + extra).forEach { (k, v) -> c.setRequestProperty(k, v) }
+        val code = c.responseCode
+        val type = c.contentType ?: "application/octet-stream"
+        val headers = c.headerFields.filterKeys { it != null }.mapValues { it.value.joinToString(", ") } + ("Access-Control-Allow-Origin" to "*")
+        val body = if (code >= 400) c.errorStream ?: java.io.ByteArrayInputStream(ByteArray(0)) else c.inputStream
+        return WebResourceResponse(type.substringBefore(';').trim(), null, code, c.responseMessage?.ifBlank { null } ?: "OK", headers, body)
+    }
 
     override fun play() = runOnUiThread { js("hplay.play()") }
     override fun pause() = runOnUiThread { js("hplay.pause()") }
@@ -170,6 +204,7 @@ class ReceiverActivity : Activity(), Renderer.Player {
         running = false
         runCatching { announce("ssdp:byebye") }
         runCatching { http?.close() }
+        fcast.stop()
         runCatching { ssdp?.close() }
         multicastLock?.let { runCatching { it.release() } }
         web.destroy()

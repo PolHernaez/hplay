@@ -64,4 +64,5 @@
     <string name="app_failed">The TV did not answer. Is the HPlay receiver open?</string>
     <string name="app_not_supported">This device cannot open apps. Use an HPlay receiver (TV or PC) or a Roku.</string>
     <string name="app_no_device">Choose a TV first.</string>
+    <string name="route_fcast">FCast: the TV plays the original video by itself (you can turn off your phone)</string>
 </resources>

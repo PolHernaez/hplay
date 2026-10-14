@@ -58,6 +58,13 @@ object CastRouter {
         val browser = BrowserRemote(server)
         device ?: return Result(R.string.route_browser_video, browser)
 
+        // FCast (receptores HPlay y FCast): el receptor recibe las cabeceras y pide el vídeo él mismo, sin el proxy del
+        // móvil, así que el móvil puede apagarse aunque la web exija Referer o cookies.
+        if (Cap.FCAST in device.caps) {
+            val mime = if (hls) "application/vnd.apple.mpegurl" else MediaProxy.guessType(url).takeIf { it != "application/octet-stream" } ?: "video/mp4"
+            tryFcast(device, url, mime, headers)?.let { return Result(R.string.route_fcast, it) }
+        }
+
         // Las cookies o la autorización no viajan si la tele pide la URL directamente.
         val needsProxy = headers.keys.any { it.equals("cookie", true) || it.equals("authorization", true) }
         val candidates = if (needsProxy) listOf(proxied) else listOf(url, proxied)
@@ -80,6 +87,20 @@ object CastRouter {
             if (runCatching { roku.load(candidates.first(), title, hls) }.isSuccess) return Result(R.string.route_roku_video, roku)
         }
         return Result(R.string.route_browser_video, browser)
+    }
+
+    /** Vale si el receptor llega a reproducir (o al menos no se queja) en 10 s. */
+    private fun tryFcast(device: Device, url: String, mime: String, headers: Map<String, String>): FcastRemote? {
+        val r = runCatching { FcastRemote(device.ip, device.fcastPort ?: 46899) }.getOrNull() ?: return null
+        runCatching { r.load(url, mime, headers) }.onFailure { r.stop(); return null }
+        val end = System.currentTimeMillis() + 10_000
+        while (System.currentTimeMillis() < end) {
+            if (r.error != null) break
+            if (r.status().playing) return r
+            Thread.sleep(300)
+        }
+        r.stop()
+        return null
     }
 
     fun isHls(url: String) = url.substringBefore('?').endsWith(".m3u8", true) || url.contains(".m3u8?", true)

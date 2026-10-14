@@ -81,7 +81,7 @@ namespace HPlayReceiver
     ///  1. Media Renderer DLNA: aparece en el botón «enviar a la tele» de las apps de vídeo y reproduce la URL que mandan.
     ///  2. Receptor HPlay (POST /open): la app HPlay del móvil le abre el duplicado de pantalla sin teclear nada.
     /// </summary>
-    sealed class ReceiverForm : Form, Renderer.IPlayer
+    sealed class ReceiverForm : Form, Fcast.IPlayer
     {
         const int Port = 8766;
         static readonly IPAddress SsdpGroup = IPAddress.Parse("239.255.255.250");
@@ -92,6 +92,13 @@ namespace HPlayReceiver
         readonly string dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HPlay");
         readonly bool es = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" || CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ca";
         readonly Renderer renderer;
+        Fcast fcast;
+        // Cabeceras que pide el emisor (Referer, Cookie…) para el host del vídeo actual: se añaden en WebResourceRequested.
+        volatile IDictionary<string, string> mediaHeaders;
+        volatile string mediaHost;
+        double stPos, stDur;
+        string stState = "STOPPED";
+        int stVol = 100;
         volatile bool running = true;
         TcpListener http;
         UdpClient ssdp;
@@ -150,6 +157,13 @@ namespace HPlayReceiver
                         a.Cancel = true;
                     };
                     web.CoreWebView2.NewWindowRequested += (o, a) => a.Handled = true;
+                    web.CoreWebView2.AddWebResourceRequestedFilter("*", Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All);
+                    web.CoreWebView2.WebResourceRequested += (o, a) =>
+                    {
+                        var hs = mediaHeaders;
+                        if (hs == null || hs.Count == 0 || !Uri.TryCreate(a.Request.Uri, UriKind.Absolute, out var ru) || ru.Host != mediaHost) return;
+                        foreach (var kv in hs) a.Request.Headers.SetHeader(kv.Key, kv.Value);
+                    };
                 }
                 catch (Exception ex)
                 {
@@ -159,6 +173,8 @@ namespace HPlayReceiver
                 }
                 new Thread(HttpLoop) { IsBackground = true, Name = "hplay-http" }.Start();
                 new Thread(SsdpLoop) { IsBackground = true, Name = "hplay-ssdp" }.Start();
+                fcast = new Fcast(this, IsLan);
+                fcast.Start();
                 ShowPlayer(null, null, null);
                 AutoUpdate.Check(this, es);
             };
@@ -166,6 +182,7 @@ namespace HPlayReceiver
             {
                 running = false;
                 alive?.Dispose();
+                fcast?.Stop();
                 try { foreach (var ip in LocalIps()) Announce(ip, "ssdp:byebye"); } catch { }
                 try { http?.Stop(); } catch { }
                 try { ssdp?.Close(); } catch { }
@@ -192,7 +209,8 @@ namespace HPlayReceiver
         {
             var ips = string.Join(" · ", LocalIps().Select(a => a.ToString()));
             var q = "?name=" + Uri.EscapeDataString(name) + "&ips=" + Uri.EscapeDataString(ips) +
-                    "&mime=" + Uri.EscapeDataString(mime ?? "") + "&title=" + Uri.EscapeDataString(title ?? "");
+                    "&mime=" + Uri.EscapeDataString(mime ?? "") + "&title=" + Uri.EscapeDataString(title ?? "") +
+                    "&n=" + DateTime.UtcNow.Ticks; // URL siempre distinta: reenviar el mismo vídeo debe recargarlo
             web.CoreWebView2?.Navigate("http://127.0.0.1:" + Port + "/player" + q + (url == null ? "" : "#" + Uri.EscapeDataString(url)));
         }
 
@@ -200,8 +218,13 @@ namespace HPlayReceiver
 
         // ---- Renderer.IPlayer: órdenes que llegan por DLNA ----
 
-        public void LoadMedia(string url, string mime, string title) => Ui(() =>
+        public void LoadMedia(string url, string mime, string title) => LoadMedia(url, mime, title, null);
+
+        public void LoadMedia(string url, string mime, string title, IDictionary<string, string> headers) => Ui(() =>
         {
+            mediaHeaders = headers;
+            mediaHost = Uri.TryCreate(url, UriKind.Absolute, out var mu) ? mu.Host : null;
+            if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal; // minimizada, WebView2 no carga el vídeo
             ShowPlayer(url, mime, title);
             SetFullscreen(true);
             Activate();
@@ -222,7 +245,10 @@ namespace HPlayReceiver
             double.TryParse(p[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var dur);
             int.TryParse(p[3], out var vol);
             renderer.Update(pos, dur, p[2], vol, p[4] == "1");
+            stPos = pos; stDur = dur; stState = p[2]; stVol = vol;
         }
+
+        public void Status(out double pos, out double dur, out string state, out int vol) { pos = stPos; dur = stDur; state = stState; vol = stVol; }
 
         // ---- HTTP ----
 

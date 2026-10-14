@@ -63,4 +63,5 @@
     <string name="app_failed">La tele no responde. ¿Está abierto el receptor HPlay?</string>
     <string name="app_not_supported">Este aparato no puede abrir apps. Usa un receptor HPlay (tele o PC) o un Roku.</string>
     <string name="app_no_device">Elige primero una tele.</string>
+    <string name="route_fcast">FCast: la tele reproduce el vídeo original por su cuenta (puedes apagar el móvil)</string>
 </resources>

@@ -79,6 +79,8 @@ class DiscoveryRepository(private val ctx: Context, private val scope: Coroutine
         if (hit.st == "roku:ecp" || d.deviceType.contains("roku", true) || d.manufacturer.contains("roku", true)) caps += Cap.ROKU
         val isHplay = d.deviceType.startsWith(Ssdp.HPLAY_RECEIVER.substringBeforeLast(':')) || d.model == "HPlay Receiver"
         if (isHplay) caps += Cap.HPLAY
+        // Receptores HPlay 1.5+: FCast en 46899 (se comprueba porque el mDNS no siempre cruza la red).
+        if (isHplay && runCatching { java.net.Socket().use { it.connect(java.net.InetSocketAddress(hit.ip, 46899), 600) } }.isSuccess) caps += Cap.FCAST
         if (caps.isEmpty()) return // routers, NAS, etc.: no reproducen nada
         val sinks = d.connectionManager?.let { cm -> runCatching { DlnaRemote.protocolInfo(cm) }.getOrNull() }
             ?.also { profiles.updateSinks(hit.ip, it) }
@@ -120,6 +122,7 @@ class DiscoveryRepository(private val ctx: Context, private val scope: Coroutine
         Cap.HPLAY in d.caps -> 0
         Cap.DLNA in d.caps -> 1
         Cap.ROKU in d.caps -> 2
+        Cap.FCAST in d.caps -> 2
         else -> 3
     }
 }
