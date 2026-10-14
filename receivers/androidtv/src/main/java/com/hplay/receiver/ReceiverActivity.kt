@@ -271,7 +271,18 @@ class ReceiverActivity : Activity(), Renderer.Player {
                     "LOCATION: http://$ip:$PORT/description.xml\r\nSERVER: $SERVER\r\nST: $t\r\nUSN: ${usn(t)}\r\nContent-Length: 0\r\n\r\n").toByteArray()
                 runCatching { sock.send(DatagramPacket(b, b.size, p.address, p.port)) }
             }
+            notifyBurst()
         }
+    }
+
+    @Volatile private var lastBurst = 0L
+
+    /** Tras una búsqueda, tres NOTIFY: Play Shots (Cling) borra su lista antes de cada búsqueda (igual que el .exe). */
+    private fun notifyBurst() {
+        val now = System.currentTimeMillis()
+        if (now - lastBurst < 5_000) return
+        lastBurst = now
+        thread { for (wait in longArrayOf(700, 800, 1500)) { Thread.sleep(wait); if (running) runCatching { announce("ssdp:alive") } } }
     }
 
     private fun announce(nts: String) {

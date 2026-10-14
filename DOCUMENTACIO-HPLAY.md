@@ -15,6 +15,7 @@
   pausa, volumen, stop y eventos LastChange (PLAYING/PAUSED_PLAYBACK/STOPPED).
 - **Actualizador probado de punta a punta** (2026-10-12): móvil y tele en el emulador (1.0-test → 1.1 con firma,
   SHA-256, certificado e instalador) y .exe en este PC (1.0 → 1.2 y la v1.1 publicada → 1.2 con autorreparación).
+- **Play Shots**: receptores con ráfaga NOTIFY tras cada búsqueda (1.4); pendiente de confirmar en el móvil real.
 - **Sin probar todavía con hardware real**: teles DLNA (LG/Samsung/Sony…), Roku, webOS/Tizen, móviles ColorOS/MIUI.
 
 ## 1. Arquitectura
@@ -181,6 +182,11 @@ Actualizadores (móvil y tele: módulo `:updater`; Windows: `receivers/windows/A
 La v1.0 se firmó con clave de prueba: quien la tenga debe desinstalarla una vez. Desde la v1.1 todo se actualiza solo.
 
 ## 10. Registro de cambios
+
+- **2026-10-14 · 1.4** — Receptores (.exe y Android TV): tras responder a una búsqueda SSDP envían 3 NOTIFY `ssdp:alive`
+  (0,7 s, 1,5 s y 3 s; máximo una ráfaga cada 5 s). Play Shots (Cling) borra su lista antes de cada una de sus 5
+  búsquedas y en algunos móviles no vuelve a procesar las respuestas: así tiene un segundo camino para ver el receptor.
+  Simulado en el PC con Cling 2.1.2 (borrar + buscar ×5): el receptor queda en la lista. Falta probarlo con el móvil real.
 
 - **2026-10-12 · 1.3** — «Enviar vídeo» sin web abierta: el WebView vacío se pintaba negro encima de todo y tapaba la barra
   de dirección (Pol no veía dónde escribir). Ahora se muestra una explicación: es un navegador para webs y, para vídeos

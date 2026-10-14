@@ -45,6 +45,25 @@ namespace HPlayReceiver
             }
         }
 
+        static readonly object logGate = new object();
+        public static string LogFile;
+
+        /// <summary>Registro de diagnóstico (quién busca el receptor y qué le pide). Máx. ~1 MB, sin datos personales.</summary>
+        public static void Log(string line)
+        {
+            if (LogFile == null) return;
+            try
+            {
+                lock (logGate)
+                {
+                    var fi = new FileInfo(LogFile);
+                    if (fi.Exists && fi.Length > 1_000_000) File.Delete(LogFile);
+                    File.AppendAllText(LogFile, DateTime.Now.ToString("HH:mm:ss.fff") + " " + line + Environment.NewLine);
+                }
+            }
+            catch { }
+        }
+
         public static byte[] Resource(string name)
         {
             using (var st = Assembly.GetExecutingAssembly().GetManifestResourceStream(name))
@@ -87,6 +106,8 @@ namespace HPlayReceiver
             uuid = File.Exists(uuidFile) ? File.ReadAllText(uuidFile).Trim() : Guid.NewGuid().ToString();
             File.WriteAllText(uuidFile, uuid);
             renderer = new Renderer(this);
+            Program.LogFile = Path.Combine(dataDir, "registre.txt");
+            Program.Log("=== HPlay Receptor " + Application.ProductVersion + " · " + string.Join(", ", LocalIps()));
 
             Text = es ? "HPlay Receptor" : "HPlay Receiver";
             Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath);
@@ -283,11 +304,15 @@ namespace HPlayReceiver
         void Serve(TcpClient c)
         {
             var remote = ((IPEndPoint)c.Client.RemoteEndPoint).Address;
-            if (!IsLan(remote)) return;
+            if (!IsLan(remote)) { Program.Log("HTTP rebutjat (fora de la xarxa local) " + remote); return; }
             c.ReceiveTimeout = 8000;
             var st = c.GetStream();
             var req = Read(st);
             if (req == null) return;
+            req.Headers.TryGetValue("user-agent", out var ua);
+            req.Headers.TryGetValue("soapaction", out var soapLog);
+            if (!IPAddress.IsLoopback(remote) || !req.Path.StartsWith("/player"))
+                Program.Log("HTTP " + remote + " " + req.Method + " " + req.Path + (soapLog != null ? " " + soapLog : "") + " [" + ua + "]");
 
             void Reply(int code, string type, byte[] body, string extra = "")
             {
@@ -325,6 +350,7 @@ namespace HPlayReceiver
                     var action = (sa ?? "").Trim('"', ' ');
                     action = action.Substring(action.LastIndexOf('#') + 1);
                     var resp = renderer.Soap(last, action, Encoding.UTF8.GetString(req.Body), out var code);
+                    if (code != 200) Program.Log("SOAP " + action + " -> error " + code);
                     Txt(code, Xml, resp);
                     return;
                 case "/upnp/event/avt":
@@ -369,8 +395,9 @@ namespace HPlayReceiver
                     try { ssdp.JoinMulticastGroup(SsdpGroup, ip); } catch { }
                 }
             }
-            catch (SocketException)
+            catch (SocketException ex)
             {
+                Program.Log("SSDP: no s'ha pogut obrir el port 1900: " + ex.Message);
                 return; // sin SSDP el móvil aún puede añadir este PC por IP
             }
             // Anuncio al arrancar y cada 60 s: algunos controladores solo escuchan NOTIFY.
@@ -385,6 +412,7 @@ namespace HPlayReceiver
                 var st = msg.Split('\n').Select(l => l.Trim())
                     .FirstOrDefault(l => l.StartsWith("ST:", StringComparison.OrdinalIgnoreCase))?.Substring(3).Trim();
                 if (st == null) continue;
+                Program.Log("SSDP M-SEARCH de " + from.Address + " ST=" + st);
                 var types = st == "ssdp:all" ? Targets() : Targets().Where(t => t.Equals(st, StringComparison.OrdinalIgnoreCase)).ToArray();
                 if (types.Length == 0) continue;
                 var local = LocalIpFor(from.Address);
@@ -396,7 +424,30 @@ namespace HPlayReceiver
                         "\r\nUSN: " + Usn(t) + "\r\nContent-Length: 0\r\n\r\n");
                     try { ssdp.Send(b, b.Length, from); } catch { }
                 }
+                NotifyBurst(local);
             }
+        }
+
+        long lastBurst;
+
+        /// <summary>
+        /// Tras una búsqueda, tres anuncios NOTIFY (0,7 s, 1,5 s y 3 s). Play Shots (Cling) borra su lista antes de
+        /// cada búsqueda y en algunos móviles no vuelve a procesar las respuestas: así tiene un segundo camino.
+        /// </summary>
+        void NotifyBurst(IPAddress local)
+        {
+            var now = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
+            if (now - Interlocked.Read(ref lastBurst) < 5000) return;
+            Interlocked.Exchange(ref lastBurst, now);
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                foreach (var wait in new[] { 700, 800, 1500 })
+                {
+                    Thread.Sleep(wait);
+                    if (!running) return;
+                    Announce(local, "ssdp:alive");
+                }
+            });
         }
 
         void Announce(IPAddress local, string nts)
