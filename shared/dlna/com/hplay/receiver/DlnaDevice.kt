@@ -134,7 +134,13 @@ class DlnaDevice(
 
     private fun ssdpLoop() {
         val sock = runCatching {
-            MulticastSocket(1900).apply { @Suppress("DEPRECATION") joinGroup(InetAddress.getByName(GROUP)) }
+            MulticastSocket(1900).apply {
+                // En cada interfaz IPv4 (no solo la por defecto): las apps del mismo móvil (Play Shots, YAACC) buscan
+                // por la Wi-Fi concreta y, si el grupo está unido en otra, su M-SEARCH no llega.
+                val group = InetSocketAddress(InetAddress.getByName(GROUP), 1900)
+                ipv4Interfaces().forEach { runCatching { joinGroup(group, it) } }
+                @Suppress("DEPRECATION") runCatching { joinGroup(InetAddress.getByName(GROUP)) }
+            }
         }.getOrNull() ?: return
         ssdp = sock
         val buf = ByteArray(2048)
@@ -167,13 +173,19 @@ class DlnaDevice(
         thread { for (wait in longArrayOf(700, 800, 1500)) { Thread.sleep(wait); if (running) runCatching { announce("ssdp:alive") } } }
     }
 
+    /** NOTIFY por cada interfaz IPv4, con su propia IP en LOCATION. */
     private fun announce(nts: String) {
-        val ip = localIps().firstOrNull() ?: return
-        DatagramSocket().use { s ->
-            for (t in targets()) {
-                val b = ("NOTIFY * HTTP/1.1\r\nHOST: $GROUP:1900\r\nCACHE-CONTROL: max-age=1800\r\nLOCATION: http://$ip:$port/description.xml\r\n" +
-                    "NT: $t\r\nNTS: $nts\r\nSERVER: $server\r\nUSN: ${usn(t)}\r\n\r\n").toByteArray()
-                s.send(DatagramPacket(b, b.size, InetAddress.getByName(GROUP), 1900))
+        for (nif in ipv4Interfaces()) {
+            val ip = nif.inetAddresses.toList().firstOrNull { it is Inet4Address }?.hostAddress ?: continue
+            runCatching {
+                MulticastSocket().use { s ->
+                    s.networkInterface = nif
+                    for (t in targets()) {
+                        val b = ("NOTIFY * HTTP/1.1\r\nHOST: $GROUP:1900\r\nCACHE-CONTROL: max-age=1800\r\nLOCATION: http://$ip:$port/description.xml\r\n" +
+                            "NT: $t\r\nNTS: $nts\r\nSERVER: $server\r\nUSN: ${usn(t)}\r\n\r\n").toByteArray()
+                        s.send(DatagramPacket(b, b.size, InetAddress.getByName(GROUP), 1900))
+                    }
+                }
             }
         }
     }
@@ -187,6 +199,12 @@ class DlnaDevice(
         private const val GROUP = "239.255.255.250"
 
         fun isLan(a: InetAddress) = a.isLoopbackAddress || a.isSiteLocalAddress || a.isLinkLocalAddress
+
+        private fun ipv4Interfaces(): List<NetworkInterface> = runCatching {
+            NetworkInterface.getNetworkInterfaces().toList().filter { n ->
+                n.isUp && !n.isLoopback && n.supportsMulticast() && n.inetAddresses.toList().any { it is Inet4Address && it.isSiteLocalAddress }
+            }
+        }.getOrDefault(emptyList())
 
         fun localIps(): List<String> = runCatching {
             NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }
