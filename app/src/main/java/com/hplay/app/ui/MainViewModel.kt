@@ -23,12 +23,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     enum class Screen { HOME, BROWSER, BATTERY }
 
     /** Vídeo detectado por el navegador integrado (solo lo que el propio WebView ya pide). */
-    data class Media(val url: String, val headers: Map<String, String>, val title: String, val app: AppLink? = null) {
+    data class Media(val url: String, val headers: Map<String, String>, val title: String, val app: AppLink? = null, val mime: String? = null) {
         val kind get() = when {
             app != null -> app.service.label
+            mime?.contains("mpegurl", true) == true -> "HLS"
+            mime?.contains("dash", true) == true -> "DASH"
+            mime != null -> mime.substringAfter('/').uppercase().take(4)
             Regex("\\.m3u8", RegexOption.IGNORE_CASE).containsMatchIn(url) -> "HLS"
             Regex("\\.mpd", RegexOption.IGNORE_CASE).containsMatchIn(url) -> "DASH"
-            else -> url.substringBefore('?').substringAfterLast('.').uppercase().take(4)
+            else -> url.substringBefore('?').substringAfterLast('/').substringAfterLast('.', "VIDEO").uppercase().take(5)
         }
     }
 
@@ -95,6 +98,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (!url.startsWith("http") || !MEDIA.containsMatchIn(url.substringBefore('?').substringBefore('#'))) return
         detected.update { list ->
             if (list.any { it.url == url }) list else (listOf(Media(url, headers, pageTitle)) + list).take(20)
+        }
+    }
+
+    /** Vídeo que el script de la página ha visto (por tipo MIME o en un <video>), aunque la URL no tenga extensión. */
+    fun onScriptMedia(url: String, mime: String, pageUrl: String) {
+        if (!url.startsWith("http")) return
+        val headers = buildMap {
+            put("Referer", pageUrl)
+            android.webkit.CookieManager.getInstance().getCookie(url)?.let { put("Cookie", it) }
+        }
+        detected.update { list ->
+            if (list.any { it.url == url }) list else (listOf(Media(url, headers, pageTitle, mime = mime.ifBlank { null })) + list).take(20)
         }
     }
 

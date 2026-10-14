@@ -10,10 +10,13 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -366,7 +369,16 @@ private fun BrowserScreen(vm: MainViewModel) {
                         settings.domStorageEnabled = true
                         settings.mediaPlaybackRequiresUserGesture = true
                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                        addJavascriptInterface(object {
+                            @JavascriptInterface fun media(url: String, mime: String, page: String) = vm.onScriptMedia(url, mime, page)
+                        }, "HPlayDetect")
+                        // Antes que los scripts de la página: así se ven también los fetch que hace al cargar.
+                        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+                            WebViewCompat.addDocumentStartJavaScript(this, DETECT_JS, setOf("*"))
+                        }
                         webViewClient = object : WebViewClient() {
+                            override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) = view.evaluateJavascript(DETECT_JS, null)
+
                             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                                 val url = request.url.toString()
                                 val headers = HashMap(request.requestHeaders)
@@ -379,6 +391,7 @@ private fun BrowserScreen(vm: MainViewModel) {
                                 vm.pageTitle = view.title.orEmpty()
                                 input = url
                                 vm.onPage(url)
+                                view.evaluateJavascript(DETECT_JS, null) // por si la página reemplazó el de onPageStarted
                             }
                         }
                         web = this
@@ -407,6 +420,39 @@ private fun BrowserScreen(vm: MainViewModel) {
         }
     }
 }
+
+/**
+ * Script inyectado en cada página: avisa de los vídeos que la URL no delata (manifiestos sin extensión, <video> con
+ * src directo) mirando el Content-Type de fetch/XHR y los elementos <video>/<audio>. Los blob: (MSE) no se pueden
+ * enviar; su manifiesto real aparece por fetch/XHR.
+ */
+private const val DETECT_JS = """
+(function () {
+  if (window.__hplay) return; window.__hplay = 1;
+  var seen = {};
+  function report(u, t) {
+    try { u = new URL(u, location.href).href; } catch (e) { return; }
+    if (seen[u] || !/^https?:/.test(u)) return; seen[u] = 1;
+    HPlayDetect.media(u, t || '', location.href);
+  }
+  function check(u, t) { if (/mpegurl|dash\+xml|^video\/|^audio\/(mp4|mpeg|aac)/i.test(t || '')) report(u, t.split(';')[0]); }
+  var f = window.fetch;
+  if (f) window.fetch = function () {
+    return f.apply(this, arguments).then(function (r) { try { check(r.url, r.headers.get('content-type')); } catch (e) {} return r; });
+  };
+  var open = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (m, u) {
+    this.addEventListener('load', function () { try { check(this.responseURL || u, this.getResponseHeader('content-type')); } catch (e) {} });
+    return open.apply(this, arguments);
+  };
+  setInterval(function () {
+    document.querySelectorAll('video,audio,video source,audio source').forEach(function (v) {
+      var s = v.currentSrc || v.src;
+      if (s && !/^blob:/.test(s)) report(s, v.type || '');
+    });
+  }, 1500);
+})();
+"""
 
 /** Pantalla guiada para ColorOS, MIUI, One UI y similares, que matan servicios en segundo plano. */
 @Composable

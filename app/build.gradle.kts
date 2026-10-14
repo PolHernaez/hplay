@@ -56,5 +56,6 @@ dependencies {
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.coroutines.android)
     implementation(libs.zxing.core)
+    implementation(libs.webkit)
     testImplementation(libs.junit)
 }
