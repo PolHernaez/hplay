@@ -372,6 +372,18 @@ namespace HPlayReceiver
                     }
                     else Txt(403, "text/plain", "forbidden");
                     return;
+                case "/launch":
+                    if (req.Method != "POST") break;
+                    // Cuerpo: 1.ª línea el enlace (las siguientes son paquetes de Android TV, aquí no sirven).
+                    // Se abre en el navegador/app de Windows, no en esta ventana: la ventana no tiene seguridad web.
+                    var link = Encoding.UTF8.GetString(req.Body).Split('\n')[0].Trim();
+                    if (Uri.TryCreate(link, UriKind.Absolute, out var lu) && (lu.Scheme == "https" || lu.Scheme == "http" || lu.Scheme == "spotify"))
+                    {
+                        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(lu.AbsoluteUri) { UseShellExecute = true }); Txt(200, "text/plain", "ok"); }
+                        catch (Exception ex) { Program.Log("launch: " + ex.Message); Txt(404, "text/plain", "no app"); }
+                    }
+                    else Txt(403, "text/plain", "forbidden");
+                    return;
             }
             Txt(404, "text/plain", "not found");
         }

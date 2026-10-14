@@ -56,4 +56,11 @@
     <string name="browser_empty_title">Escribe arriba la web del vídeo</string>
     <string name="browser_empty_web">Este navegador sirve para webs (por ejemplo twitch.tv). Abre la web, pon el vídeo en marcha y aparecerá abajo para enviarlo.</string>
     <string name="browser_empty_apps">¿El vídeo está en otra app? HPlay no puede ver dentro de otras apps. Abre HPlay Receptor en el PC o la tele y usa el botón de enviar de esa app (el icono de pantalla). Si no lo tiene, usa «Duplicar pantalla».</string>
+    <string name="open_on_tv">Abrir en la tele</string>
+    <string name="app_opening">Pidiendo a la tele que abra la app…</string>
+    <string name="app_opened">La tele ha abierto la app oficial. Puedes apagar el móvil.</string>
+    <string name="app_not_installed">Esa app no está instalada en la tele.</string>
+    <string name="app_failed">La tele no responde. ¿Está abierto el receptor HPlay?</string>
+    <string name="app_not_supported">Este aparato no puede abrir apps. Usa un receptor HPlay (tele o PC) o un Roku.</string>
+    <string name="app_no_device">Elige primero una tele.</string>
 </resources>

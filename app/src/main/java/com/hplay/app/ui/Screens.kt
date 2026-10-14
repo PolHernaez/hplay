@@ -315,6 +315,7 @@ private fun Qr(text: String) {
 private fun BrowserScreen(vm: MainViewModel) {
     val target by vm.browserUrl.collectAsState()
     val detected by vm.detected.collectAsState()
+    val notice by vm.notice.collectAsState()
     val devices by vm.devices.collectAsState()
     val selected by vm.selectedIp.collectAsState()
     var input by remember { mutableStateOf(target) }
@@ -375,6 +376,7 @@ private fun BrowserScreen(vm: MainViewModel) {
                             override fun onPageFinished(view: WebView, url: String) {
                                 vm.pageTitle = view.title.orEmpty()
                                 input = url
+                                vm.onPage(url)
                             }
                         }
                         web = this
@@ -389,12 +391,13 @@ private fun BrowserScreen(vm: MainViewModel) {
         Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(12.dp)) {
             Text(stringResource(R.string.send_to, dest), fontSize = 13.sp)
             if (detected.isEmpty() && target.isNotBlank()) Text(stringResource(R.string.no_media_yet), fontSize = 14.sp)
+            notice?.let { Text(stringResource(it), fontSize = 14.sp, color = MaterialTheme.colorScheme.primary) }
             LazyColumn(Modifier.heightIn(max = 220.dp)) {
                 items(detected, key = { it.url }) { m ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(m.kind, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 8.dp))
                         Text(m.url.substringBefore('?').substringAfter("://"), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        Button(onClick = { vm.send(m) }) { Text(stringResource(R.string.send)) }
+                        Button(onClick = { vm.send(m) }) { Text(stringResource(if (m.app != null) R.string.open_on_tv else R.string.send)) }
                     }
                     HorizontalDivider()
                 }

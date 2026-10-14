@@ -4,8 +4,12 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hplay.app.R
 import com.hplay.app.Session
 import com.hplay.app.capture.HPlayService
+import com.hplay.app.cast.AppLauncher
+import com.hplay.app.cast.AppLink
+import com.hplay.app.cast.AppLinks
 import com.hplay.app.cast.Remote
 import com.hplay.app.hplay
 import kotlinx.coroutines.Dispatchers
@@ -19,8 +23,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     enum class Screen { HOME, BROWSER, BATTERY }
 
     /** Vídeo detectado por el navegador integrado (solo lo que el propio WebView ya pide). */
-    data class Media(val url: String, val headers: Map<String, String>, val title: String) {
+    data class Media(val url: String, val headers: Map<String, String>, val title: String, val app: AppLink? = null) {
         val kind get() = when {
+            app != null -> app.service.label
             Regex("\\.m3u8", RegexOption.IGNORE_CASE).containsMatchIn(url) -> "HLS"
             Regex("\\.mpd", RegexOption.IGNORE_CASE).containsMatchIn(url) -> "DASH"
             else -> url.substringBefore('?').substringAfterLast('.').uppercase().take(4)
@@ -43,6 +48,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val browserUrl = MutableStateFlow("")
     val detected = MutableStateFlow<List<Media>>(emptyList())
     @Volatile var pageTitle = ""
+    /** Resultado de «abrir en la app de la tele» (R.string). */
+    val notice = MutableStateFlow<Int?>(null)
 
     init {
         discovery.start()
@@ -71,8 +78,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Enlace compartido desde otra app: si ya es un vídeo directo, queda listo para enviar. */
     fun handleShared(url: String) {
-        if (MEDIA.containsMatchIn(url.substringBefore('?'))) detected.value = listOf(Media(url, emptyMap(), url.substringAfterLast('/')))
+        detected.value = emptyList()
+        onPage(url)
+        if (MEDIA.containsMatchIn(url.substringBefore('?'))) detected.update { it + Media(url, emptyMap(), url.substringAfterLast('/')) }
         openBrowser(url)
+    }
+
+    /** Página abierta o enlace compartido de un servicio con app de tele (YouTube, Netflix…): primero de la lista. */
+    fun onPage(url: String) {
+        val link = AppLinks.parse(url) ?: return
+        detected.update { list -> listOf(Media(link.url, emptyMap(), link.service.label, link)) + list.filter { it.app == null } }
     }
 
     /** Llamado desde shouldInterceptRequest (hilo de red del WebView). */
@@ -84,6 +99,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun send(m: Media) {
+        if (m.app != null) {
+            notice.value = R.string.app_opening
+            viewModelScope.launch(Dispatchers.IO) { notice.value = AppLauncher.launch(discovery.get(selectedIp.value), m.app) }
+            return
+        }
         HPlayService.sendUrl(getApplication(), m.url, m.headers, m.title.ifBlank { "HPlay" }, selectedIp.value)
         screen.value = Screen.HOME
     }

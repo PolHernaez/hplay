@@ -2,6 +2,8 @@ package com.hplay.receiver
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
@@ -114,6 +116,15 @@ class ReceiverActivity : Activity(), Renderer.Player {
         if (url.startsWith(PLAYER)) return true
         val u = runCatching { URL(url) }.getOrNull() ?: return false
         return u.protocol == "http" && runCatching { isLan(InetAddress.getByName(u.host)) }.getOrDefault(false)
+    }
+
+    /** Abre la app oficial (YouTube, Netflix…) en el contenido: primero los paquetes preferidos, luego lo que elija el sistema. */
+    private fun launchApp(link: Uri, packages: List<String>): Boolean {
+        val base = Intent(Intent.ACTION_VIEW, link).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        for (p in packages + listOf<String?>(null)) {
+            if (runCatching { startActivity(Intent(base).setPackage(p)) }.isSuccess) return true
+        }
+        return false
     }
 
     private fun js(script: String) = web.evaluateJavascript(script, null)
@@ -239,6 +250,16 @@ class ReceiverActivity : Activity(), Renderer.Player {
                 if (req.method == "POST" && url.startsWith("http://") && allowed(url)) {
                     runOnUiThread { web.loadUrl(url) }
                     reply(200, "text/plain", "ok")
+                } else reply(403, "text/plain", "forbidden")
+            }
+            "/launch" -> {
+                // Cuerpo: 1.ª línea el enlace (https o spotify:), las siguientes los paquetes preferidos.
+                val lines = String(req.body, Charsets.UTF_8).lines().map { it.trim() }.filter { it.isNotEmpty() }
+                val link = lines.firstOrNull()
+                val scheme = link?.let { Uri.parse(it).scheme }
+                if (req.method == "POST" && scheme in setOf("https", "http", "spotify")) {
+                    val ok = launchApp(Uri.parse(link), lines.drop(1))
+                    reply(if (ok) 200 else 404, "text/plain", if (ok) "ok" else "no app")
                 } else reply(403, "text/plain", "forbidden")
             }
             else -> reply(404, "text/plain", "not found")
