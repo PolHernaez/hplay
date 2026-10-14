@@ -16,6 +16,8 @@
 - **Actualizador probado de punta a punta** (2026-10-12): móvil y tele en el emulador (1.0-test → 1.1 con firma,
   SHA-256, certificado e instalador) y .exe en este PC (1.0 → 1.2 y la v1.1 publicada → 1.2 con autorreparación).
 - **Play Shots**: receptores con ráfaga NOTIFY tras cada búsqueda (1.4); pendiente de confirmar en el móvil real.
+- **1.5**: apps oficiales en la tele, FCast, Chromecast, Kodi, DIAL y navegador de la tele como receptor (con puente
+  DLNA en el móvil). Probado en emulador y PC; Chromecast, Kodi, Roku y DIAL pendientes de hardware.
 - **Sin probar todavía con hardware real**: teles DLNA (LG/Samsung/Sony…), Roku, webOS/Tizen, móviles ColorOS/MIUI.
 
 ## 1. Arquitectura
@@ -182,6 +184,25 @@ Actualizadores (móvil y tele: módulo `:updater`; Windows: `receivers/windows/A
 La v1.0 se firmó con clave de prueba: quien la tenga debe desinstalarla una vez. Desde la v1.1 todo se actualiza solo.
 
 ## 10. Registro de cambios
+
+- **2026-10-14 · 1.5** — Compatibilidad ampliada (investigación en `RECERCA-COMPATIBILITAT.md`; Pol autoriza
+  librerías de ingeniería inversa por ser proyecto personal, DRM sigue fuera):
+  - **Abrir en la app oficial de la tele** (YouTube, Netflix, Disney+, Prime, Max, Twitch, Spotify, Crunchyroll, Apple TV,
+    Plex): enlace compartido → receptor HPlay de TV (`POST /launch`, intent), .exe (navegador de Windows), Roku (ECP
+    `launch/<canal>?contentId`) o DIAL (YouTube `v=ID`, Netflix). Probado: emulador y .exe. Sin probar: Roku, DIAL.
+  - **FCast v2** (protocolo abierto de FUTO): receptores .exe y TV (46899, mDNS `_fcast._tcp`) y emisor en la app. Las
+    cabeceras (Referer, Cookie) llegan al reproductor (WebView2 `WebResourceRequested`, `shouldInterceptRequest`): el
+    móvil puede apagarse. Probado con vídeo protegido por Referer (200 con cabecera, 403 sin ella) y app → .exe.
+  - **Chromecast/Google TV** (Cast V2 propio, Default Media Receiver) y **Kodi** (JSON-RPC `url|Referer=…`): sin aparato
+    para probar; formato de CastMessage con tests.
+  - **Navegador integrado**: detecta vídeos por tipo MIME (fetch/XHR) y `<video>` aunque la URL no tenga extensión
+    (script al inicio del documento con androidx.webkit).
+  - **Navegador de la tele como la app**: código fijo por instalación (la web se queda abierta y se reconecta), vídeo por
+    la URL original con caída al proxy a los 7 s, YouTube con su reproductor incrustado, y **puente DLNA en el móvil**
+    («HPlay · navegador de la tele»): Play Shots y otras apps DLNA envían a la web de la tele. Probado en emulador.
+  - Corregido: la web se desconectaba cada 12 s en modo vídeo y lo reiniciaba; el .exe minimizado no cargaba el vídeo y
+    no recargaba el mismo vídeo reenviado.
+  - `Renderer`, `Upnp` y el servidor DLNA (`DlnaDevice`) pasan a `shared/dlna` (app de TV y puente del móvil).
 
 - **2026-10-14 · 1.4** — Receptores (.exe y Android TV): tras responder a una búsqueda SSDP envían 3 NOTIFY `ssdp:alive`
   (0,7 s, 1,5 s y 3 s; máximo una ráfaga cada 5 s). Play Shots (Cling) borra su lista antes de cada una de sus 5
