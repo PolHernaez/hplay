@@ -58,7 +58,9 @@ echo "  firma buena"
 
 echo "[3/7] Receptor de Windows..."
 rm -rf "$EXE" receivers/windows/obj receivers/windows/bin # sin restos: la versión incrustada debe ser la nueva
-dotnet publish receivers/windows/HPlayReceiver.csproj -c Release -o receivers/windows/out -p:Version="$VER.0.$CODE" -nologo -v q > /dev/null
+# .NET admite 4 partes: X.Y.Z.versionCode (1.7 → 1.7.0.8, 1.7.1 → 1.7.1.9); AutoUpdate.cs lee el código en la cuarta.
+ASMVER="$(echo "$VER.0.0" | cut -d. -f1-3).$CODE"
+dotnet publish receivers/windows/HPlayReceiver.csproj -c Release -o receivers/windows/out -p:Version="$ASMVER" -nologo -v q > /dev/null
 [ -f "$EXE" ] || { echo "ERROR: no se ha generado el .exe"; exit 1; }
 
 echo "[4/7] Paquete y update.json firmado..."

@@ -193,6 +193,8 @@ La v1.0 se firmó con clave de prueba: quien la tenga debe desinstalarla una vez
 - **2026-10-15 · 1.7.1** — Monitor DNS: si otra app está como «VPN siempre activa» (p. ej. NoAds) Android cierra el
   diálogo de permiso sin mostrarlo, aunque esa VPN esté apagada desde su app (visto en el móvil de Pol). Ahora el detector
   lo distingue de un «Cancelar» (respuesta en <1,5 s), lo explica y ofrece abrir los ajustes de VPN. Solo una VPN a la vez.
+  `build-apk.sh` ya admite versiones X.Y.Z: el .exe se compila como `X.Y.Z.versionCode` (antes `X.Y.0.versionCode`, que con
+  1.7.1 daba 5 partes y .NET no compilaba) y muestra el tercer número si no es 0.
 
 - **2026-10-15 · 1.7** — **Detector multimedia** (paquete `detect/`, pantalla nueva):
   - Receptor DLNA de diagnóstico «HPlay · Detector» (puerto 8768, servicio `connectedDevice`): no reproduce; guarda URL,

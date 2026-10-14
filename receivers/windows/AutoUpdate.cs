@@ -35,7 +35,7 @@ namespace HPlayReceiver
         sealed class Manifest { public string Version; public long Code, MinRequired, Size; public string Sha256, Notes; }
 
         static int InstalledCode => Assembly.GetExecutingAssembly().GetName().Version.Revision;
-        static string InstalledName { get { var v = Assembly.GetExecutingAssembly().GetName().Version; return v.Major + "." + v.Minor; } }
+        static string InstalledName { get { var v = Assembly.GetExecutingAssembly().GetName().Version; return v.Major + "." + v.Minor + (v.Build > 0 ? "." + v.Build : ""); } }
 
         /// <summary>Borra el .exe viejo que dejó la última actualización (ya no está en uso).</summary>
         public static void CleanupOld()
