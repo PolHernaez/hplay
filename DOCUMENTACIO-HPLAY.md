@@ -185,6 +185,15 @@ La v1.0 se firmó con clave de prueba: quien la tenga debe desinstalarla una vez
 
 ## 10. Registro de cambios
 
+- **2026-10-15 · 1.6** — Pruebas reales en el emulador:
+  - **Puente DLNA del móvil visible para las apps del mismo móvil**: el grupo multicast y los NOTIFY se hacían solo en la
+    interfaz por defecto y las apps que buscan por la Wi-Fi concreta (Play Shots, YAACC) no lo veían. Ahora en todas
+    (`shared/dlna/DlnaDevice`). Probado con YAACC (F-Droid): ve «HPlay · TV browser» y el vídeo sale en la web de la tele.
+  - **Pluto TV → .exe funciona** (navegador de HPlay → FCast): se guardaban las cabeceras de la consulta previa CORS
+    (OPTIONS) y no el `Authorization` (JWT) de la petición real; ahora solo cuentan los GET. Las listas «master» salen
+    primero (antes se mandaba el `audio.m3u8`) y los segmentos `.ts` sueltos ya no se listan.
+  - El .exe registra los nombres (no los valores) de las cabeceras FCast recibidas.
+
 - **2026-10-14 · 1.5** — Compatibilidad ampliada (investigación en `RECERCA-COMPATIBILITAT.md`; Pol autoriza
   librerías de ingeniería inversa por ser proyecto personal, DRM sigue fuera):
   - **Abrir en la app oficial de la tele** (YouTube, Netflix, Disney+, Prime, Max, Twitch, Spotify, Crunchyroll, Apple TV,

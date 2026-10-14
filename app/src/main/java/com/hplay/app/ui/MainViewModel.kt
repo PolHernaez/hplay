@@ -96,21 +96,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Llamado desde shouldInterceptRequest (hilo de red del WebView). */
     fun onRequest(url: String, headers: Map<String, String>) {
         if (!url.startsWith("http") || !MEDIA.containsMatchIn(url.substringBefore('?').substringBefore('#'))) return
-        detected.update { list ->
-            if (list.any { it.url == url }) list else (listOf(Media(url, headers, pageTitle)) + list).take(20)
+        // Cabeceras propias del navegador que otro reproductor no debe repetir.
+        add(Media(url, headers.filterKeys { !it.startsWith("Sec-", true) && !it.startsWith("Access-Control-", true) }, pageTitle))
+    }
+
+    /** Las listas «master» primero y las de solo audio al final: si no, se mandaba el audio.m3u8 de Pluto y sin imagen. */
+    private fun add(m: Media) = detected.update { list ->
+        if (list.any { it.url == m.url }) list
+        else (listOf(m) + list).sortedBy { rank(it) }.take(20)
+    }
+
+    private fun rank(m: Media): Int {
+        if (m.app != null) return 0
+        val file = m.url.substringBefore('?').substringAfterLast('/').lowercase()
+        return when {
+            "master" in file || "index" in file -> 1
+            "audio" in m.url.substringBefore('?').lowercase() -> 3
+            else -> 2
         }
     }
 
     /** Vídeo que el script de la página ha visto (por tipo MIME o en un <video>), aunque la URL no tenga extensión. */
     fun onScriptMedia(url: String, mime: String, pageUrl: String) {
-        if (!url.startsWith("http")) return
+        // Segmentos sueltos (TS, AAC) no son un vídeo que enviar.
+        if (!url.startsWith("http") || mime.contains("mp2t", true) || url.substringBefore('?').endsWith(".ts", true)) return
         val headers = buildMap {
             put("Referer", pageUrl)
             android.webkit.CookieManager.getInstance().getCookie(url)?.let { put("Cookie", it) }
         }
-        detected.update { list ->
-            if (list.any { it.url == url }) list else (listOf(Media(url, headers, pageTitle, mime = mime.ifBlank { null })) + list).take(20)
-        }
+        add(Media(url, headers, pageTitle, mime = mime.ifBlank { null }))
     }
 
     fun send(m: Media) {

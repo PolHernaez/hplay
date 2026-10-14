@@ -390,7 +390,8 @@ private fun BrowserScreen(vm: MainViewModel) {
                                 val url = request.url.toString()
                                 val headers = HashMap(request.requestHeaders)
                                 CookieManager.getInstance().getCookie(url)?.let { headers["Cookie"] = it }
-                                vm.onRequest(url, headers)
+                                // La consulta previa de CORS (OPTIONS) no lleva el token: solo cuentan los GET.
+                                if (request.method == "GET") vm.onRequest(url, headers)
                                 return null // solo se observa: el WebView carga normal
                             }
 

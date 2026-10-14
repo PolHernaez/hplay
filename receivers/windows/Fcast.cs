@@ -121,7 +121,7 @@ namespace HPlayReceiver
                     var headers = new Dictionary<string, string>();
                     if (m.TryGetValue("headers", out var h) && h is Dictionary<string, object> hd)
                         foreach (var kv in hd) headers[kv.Key] = Convert.ToString(kv.Value, CultureInfo.InvariantCulture);
-                    Program.Log("FCast Play " + url);
+                    Program.Log("FCast Play " + url + " [capçaleres: " + string.Join(", ", headers.Keys) + "]"); // només noms: els valors poden ser credencials
                     player.LoadMedia(url, Str(m, "container"), "FCast", headers);
                     var t = Num(m, "time");
                     if (t > 0) new Timer(_ => player.Seek(t), null, 2500, Timeout.Infinite);
