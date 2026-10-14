@@ -67,4 +67,7 @@
     <string name="route_kodi">Kodi reproduce el vídeo original por su cuenta (puedes apagar el móvil)</string>
     <string name="route_cast">El Chromecast reproduce el vídeo</string>
     <string name="route_cast_mirror">Chromecast: duplicado de pantalla por HLS (3–6 s de retraso)</string>
+    <string name="relay_button">Navegador de la tele como receptor</string>
+    <string name="relay_name">Navegador de la tele</string>
+    <string name="relay_waiting">Esperando. Deja abierta en el navegador de la tele la dirección de abajo: los vídeos que mandes desde HPlay, y desde apps con botón de enviar DLNA (Play Shots…) a «HPlay · Navegador de la tele», se verán allí.</string>
 </resources>

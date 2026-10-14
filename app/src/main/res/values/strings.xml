@@ -68,4 +68,7 @@
     <string name="route_kodi">Kodi plays the original video by itself (you can turn off your phone)</string>
     <string name="route_cast">Chromecast plays the video</string>
     <string name="route_cast_mirror">Chromecast: screen mirroring by HLS (3–6 s delay)</string>
+    <string name="relay_button">TV browser as receiver</string>
+    <string name="relay_name">TV browser</string>
+    <string name="relay_waiting">Waiting. Leave the address below open on the TV browser: videos you send from HPlay, and from apps with a DLNA cast button (Play Shots…) to «HPlay · TV browser», will play there.</string>
 </resources>

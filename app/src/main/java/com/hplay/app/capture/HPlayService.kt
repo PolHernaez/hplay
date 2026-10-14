@@ -27,7 +27,10 @@ import com.hplay.app.MainActivity
 import com.hplay.app.R
 import com.hplay.app.Session
 import com.hplay.app.cast.CastRouter
+import com.hplay.app.cast.BrowserRemote
 import com.hplay.app.cast.DlnaRemote
+import com.hplay.receiver.DlnaDevice
+import com.hplay.receiver.Renderer
 import com.hplay.app.cast.Remote
 import com.hplay.app.hplay
 import com.hplay.app.server.StreamServer
@@ -66,11 +69,14 @@ class HPlayService : Service() {
     private var lastIp: String? = null
     private var netCallback: ConnectivityManager.NetworkCallback? = null
     private var lastOrientation = Configuration.ORIENTATION_UNDEFINED
+    private var relay: DlnaDevice? = null
+    private var relayLock: android.net.wifi.WifiManager.MulticastLock? = null
 
     companion object {
         private const val ACTION_MIRROR = "mirror"
         private const val ACTION_URL = "url"
         private const val ACTION_STOP = "stop"
+        private const val ACTION_RELAY = "relay"
         private const val CHANNEL = "hplay"
         private const val NOTIF_ID = 7
 
@@ -86,6 +92,9 @@ class HPlayService : Service() {
             Intent(ctx, HPlayService::class.java).setAction(ACTION_URL)
                 .putExtra("url", url).putExtra("headers", HashMap(headers)).putExtra("title", title).putExtra("device", deviceIp)
         )
+
+        /** Navegador de la tele como receptor: web fija + receptor DLNA en el móvil para las demás apps. */
+        fun relay(ctx: Context) = ctx.startForegroundService(Intent(ctx, HPlayService::class.java).setAction(ACTION_RELAY))
 
         fun stop(ctx: Context) {
             if (Session.state.value.mode != Session.Mode.IDLE) {
@@ -120,6 +129,15 @@ class HPlayService : Service() {
                 @Suppress("DEPRECATION", "UNCHECKED_CAST")
                 val headers = (intent.getSerializableExtra("headers") as? HashMap<String, String>).orEmpty()
                 startUrl(intent.getStringExtra("url").orEmpty(), headers, intent.getStringExtra("title") ?: "HPlay")
+            }
+            ACTION_RELAY -> {
+                startFg(ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+                ensureServer()
+                startRelay()
+                if (Session.state.value.mode == Session.Mode.IDLE || Session.state.value.mode == Session.Mode.URL) {
+                    targetIp = null
+                    update { it.copy(mode = Session.Mode.URL, routeRes = R.string.relay_waiting, errorRes = null, deviceName = null) }
+                }
             }
             ACTION_STOP -> shutdown()
             else -> shutdown() // reinicio del sistema sin Intent: no hay consentimiento que recuperar
@@ -253,6 +271,37 @@ class HPlayService : Service() {
         }
     }
 
+    // ---------- Puente: apps DLNA del móvil (Play Shots…) → navegador de la tele ----------
+
+    private fun startRelay() {
+        if (relay != null) return
+        val srv = server ?: return
+        val web = BrowserRemote(srv)
+        val player = object : Renderer.Player {
+            // La app manda la URL; la web de la tele la pide directamente (el móvil solo hace de mando).
+            override fun loadMedia(url: String, mime: String, title: String) = main.post { targetIp = null; startUrl(url, emptyMap(), title) }.let {}
+            override fun play() = web.play()
+            override fun pause() = web.pause()
+            override fun stop() = web.stop()
+            override fun seek(sec: Double) = web.seek(sec.toLong())
+            override fun setVolume(v: Int) = web.setVolume(v)
+            override fun setMute(m: Boolean) = web.setVolume(if (m) 0 else 100)
+        }
+        val renderer = Renderer(player)
+        scope.launch {
+            srv.receiverStatus.collect { o ->
+                o ?: return@collect
+                val dur = o.optDouble("dur", 0.0).let { if (it.isNaN() || it.isInfinite()) 0.0 else it }
+                renderer.update(o.optDouble("pos", 0.0), dur, if (o.optBoolean("paused", true)) "PAUSED_PLAYBACK" else "PLAYING", (o.optDouble("vol", 1.0) * 100).toInt(), false)
+            }
+        }
+        val prefs = getSharedPreferences("server", MODE_PRIVATE)
+        val uuid = prefs.getString("relay_uuid", null) ?: java.util.UUID.randomUUID().toString().also { prefs.edit().putString("relay_uuid", it).apply() }
+        // Android filtra el multicast entrante salvo con este cerrojo: sin él, las apps no encuentran el puente.
+        relayLock = getSystemService(android.net.wifi.WifiManager::class.java).createMulticastLock("hplay-relay").apply { setReferenceCounted(false); acquire() }
+        relay = DlnaDevice(8767, uuid, "HPlay · " + getString(R.string.relay_name), "HPlay Relay", renderer, "Android/${Build.VERSION.RELEASE} UPnP/1.0 HPlay/1.0").apply { start() }
+    }
+
     // ---------- Común ----------
 
     private fun ensureServer() {
@@ -296,6 +345,8 @@ class HPlayService : Service() {
         remote.value = null
         if (r is DlnaRemote) Thread { runCatching { r.stop() } }.start() // la tele deja de esperar el flujo
         stopCapture()
+        relay?.stop(); relay = null
+        relayLock?.let { runCatching { it.release() } }; relayLock = null
         server?.stop(); server = null
         netCallback?.let { runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(it) } }
         netCallback = null

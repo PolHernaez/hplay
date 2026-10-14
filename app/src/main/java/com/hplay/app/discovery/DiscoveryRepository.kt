@@ -72,6 +72,7 @@ class DiscoveryRepository(private val ctx: Context, private val scope: Coroutine
     }
 
     private fun describe(hit: Ssdp.Hit) {
+        if (hit.ip in com.hplay.receiver.DlnaDevice.localIps()) return // el puente de este mismo móvil
         val (xml, dialUrl) = runCatching { fetch(hit.location) }.getOrNull() ?: return
         val d = runCatching { UpnpDescription.parse(xml, hit.location) }.getOrNull() ?: return
         val caps = mutableSetOf<Cap>()

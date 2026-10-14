@@ -12,6 +12,7 @@ val hplaySigning = Properties().apply {
 }
 
 android {
+    sourceSets["main"].kotlin.srcDir("../../shared/dlna") // Renderer/Upnp/DlnaDevice compartidos con el puente del móvil
     namespace = "com.hplay.receiver"
     compileSdk = 37
 

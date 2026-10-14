@@ -157,6 +157,12 @@ private fun HomeScreen(vm: MainViewModel, onMirror: () -> Unit, onUpdate: () -> 
                 Text(stringResource(R.string.send_video), fontSize = 18.sp)
             }
         }
+        item {
+            val ctx = LocalContext.current
+            OutlinedButton(onClick = { com.hplay.app.capture.HPlayService.relay(ctx) }, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(16.dp)) {
+                Text(stringResource(R.string.relay_button), fontSize = 18.sp)
+            }
+        }
         item { Text(stringResource(R.string.drm_notice), fontSize = 13.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)) }
 
         item {

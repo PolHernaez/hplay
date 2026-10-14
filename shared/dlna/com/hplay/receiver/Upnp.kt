@@ -26,11 +26,11 @@ object Upnp {
     fun unesc(s: String) = s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'")
         .replace(Regex("&#(\\d+);")) { it.groupValues[1].toInt().toChar().toString() }.replace("&amp;", "&")
 
-    fun description(uuid: String, name: String) =
+    fun description(uuid: String, name: String, model: String = "HPlay Receiver") =
         "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:dlna=\"urn:schemas-dlna-org:device-1-0\">" +
             "<specVersion><major>1</major><minor>0</minor></specVersion><device><deviceType>$RENDERER</deviceType>" +
             "<friendlyName>${esc(name)}</friendlyName><manufacturer>HPlay</manufacturer><manufacturerURL>https://github.com/PolHernaez/hplay</manufacturerURL>" +
-            "<modelDescription>HPlay Receiver</modelDescription><modelName>HPlay Receiver</modelName><modelNumber>1.0</modelNumber>" +
+            "<modelDescription>$model</modelDescription><modelName>$model</modelName><modelNumber>1.0</modelNumber>" +
             "<UDN>uuid:$uuid</UDN><dlna:X_DLNADOC>DMR-1.50</dlna:X_DLNADOC><serviceList>" +
             service(AVT, "AVTransport", "avt") + service(RC, "RenderingControl", "rc") + service(CM, "ConnectionManager", "cm") +
             "</serviceList></device></root>"

@@ -205,7 +205,7 @@ class Renderer(private val player: Player) {
         runCatching {
             val u = URI(s.callback)
             val host = InetAddress.getByName(u.host)
-            if (!ReceiverActivity.isLan(host)) return
+            if (!DlnaDevice.isLan(host)) return
             val seq = synchronized(subs) { s.seq++ }
             val body = eventBody(s.service).toByteArray()
             val port = if (u.port > 0) u.port else 80
