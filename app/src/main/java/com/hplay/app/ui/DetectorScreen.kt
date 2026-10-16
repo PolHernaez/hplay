@@ -12,6 +12,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -25,8 +26,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -70,7 +73,10 @@ fun DetectorScreen(vm: MainViewModel) {
     val dnsOn by MediaDetector.dnsOn.collectAsState()
     val selected by vm.selectedIp.collectAsState()
     val devices by vm.devices.collectAsState()
-    var allDomains by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var appFilter by remember { mutableStateOf<String?>(null) }
+    var onlyVideo by remember { mutableStateOf(false) }
+    var showAds by remember { mutableStateOf(false) }
     val back = { vm.screen.value = MainViewModel.Screen.HOME }
     BackHandler(onBack = back)
 
@@ -136,11 +142,33 @@ fun DetectorScreen(vm: MainViewModel) {
         items(items, key = { it.id }) { ItemCard(vm, it) }
 
         item { Text(stringResource(R.string.det_domains), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
-        val relevant = domains.filter { it.cls != DomainClass.OTHER }
-        val shown = if (allDomains) domains else relevant
+        val q = query.trim().lowercase()
+        val shown = domains.filter { d ->
+            (showAds || d.cls != DomainClass.ADS) && (!onlyVideo || d.cls <= DomainClass.CDN) &&
+                (appFilter == null || d.app == appFilter) && (q.isEmpty() || q in d.name || q in d.app.lowercase())
+        }
         if (domains.isEmpty()) item { Text(stringResource(if (dnsOn) R.string.det_domains_none else R.string.det_domains_off), fontSize = 13.sp) }
+        else item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                OutlinedTextField(query, { query = it.take(64) }, singleLine = true, label = { Text(stringResource(R.string.det_search)) }, modifier = Modifier.fillMaxWidth())
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(onlyVideo, { onlyVideo = it })
+                    Text(stringResource(R.string.det_only_video), fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Checkbox(showAds, { showAds = it })
+                    Text(stringResource(R.string.det_show_ads, domains.count { it.cls == DomainClass.ADS }), fontSize = 13.sp)
+                }
+                appFilter?.let { a -> TextButton(onClick = { appFilter = null }) { Text(stringResource(R.string.det_app_filter, a)) } }
+                Row {
+                    TextButton(onClick = { copy(ctx, shown.joinToString("\n") { "${it.name}\t${it.app}\t×${it.count}" }) }) {
+                        Text(stringResource(R.string.det_copy_list, shown.size))
+                    }
+                    TextButton(onClick = { shareLog(ctx, log) }) { Text(stringResource(R.string.det_share_log)) }
+                }
+            }
+        }
         items(shown, key = { it.name + "|" + it.app }) { d ->
-            Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+            // Toque en la fila: copia el dominio. Toque en el nombre de la app: filtra por ella.
+            Column(Modifier.fillMaxWidth().clickable { copy(ctx, d.name) }.padding(vertical = 2.dp)) {
                 Row {
                     Text(d.name, fontFamily = FontFamily.Monospace, fontSize = 13.sp, modifier = Modifier.weight(1f))
                     Text("×${d.count}", fontSize = 12.sp)
@@ -148,14 +176,14 @@ fun DetectorScreen(vm: MainViewModel) {
                 val cls = when (d.cls) {
                     DomainClass.VIDEO_SERVICE -> stringResource(R.string.det_cls_video)
                     DomainClass.CDN -> stringResource(R.string.det_cls_cdn)
+                    DomainClass.ADS -> stringResource(R.string.det_cls_ads)
+                    DomainClass.SYSTEM -> stringResource(R.string.det_cls_system)
                     DomainClass.OTHER -> ""
                 }
-                Text(listOf(cls, d.app).filter { it.isNotBlank() }.joinToString(" · "), fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-            }
-        }
-        if (domains.size > relevant.size) item {
-            TextButton(onClick = { allDomains = !allDomains }) {
-                Text(stringResource(if (allDomains) R.string.det_show_relevant else R.string.det_show_all, domains.size))
+                Row {
+                    if (cls.isNotEmpty()) Text("$cls · ", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                    Text(d.app, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { appFilter = d.app })
+                }
             }
         }
 
@@ -190,7 +218,6 @@ private fun ProbeCard(title: String, hint: String, on: Boolean, onToggle: () -> 
 @Composable
 private fun ItemCard(vm: MainViewModel, m: MediaDetector.Item) {
     val ctx = LocalContext.current
-    val copied = stringResource(R.string.det_copied)
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -220,16 +247,26 @@ private fun ItemCard(vm: MainViewModel, m: MediaDetector.Item) {
             Text(stringResource(R.string.det_url_label), fontSize = 11.sp)
             SelectionContainer { Text(m.url, fontFamily = FontFamily.Monospace, fontSize = 11.sp, maxLines = 6) }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                TextButton(onClick = {
-                    ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("URL", m.url))
-                    Toast.makeText(ctx, copied, Toast.LENGTH_SHORT).show()
-                }) { Text(stringResource(R.string.det_copy)) }
+                TextButton(onClick = { copy(ctx, m.url) }) { Text(stringResource(R.string.det_copy)) }
                 TextButton(onClick = { openWith(ctx, m) }) { Text(stringResource(R.string.det_open)) }
                 TextButton(onClick = { vm.probe(m) }, enabled = m.availability != Availability.CHECKING) { Text(stringResource(R.string.det_check)) }
                 Button(onClick = { vm.sendDetected(m) }) { Text(stringResource(R.string.send)) }
             }
         }
     }
+}
+
+private fun copy(ctx: Context, text: String) {
+    ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("HPlay", text))
+    Toast.makeText(ctx, ctx.getString(R.string.det_copied), Toast.LENGTH_SHORT).show()
+}
+
+/** Registro técnico como texto por «Compartir» (guardarlo en Archivos, enviarlo…): nunca sale del móvil por sí solo. */
+private fun shareLog(ctx: Context, log: List<MediaDetector.Log>) {
+    val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
+    val text = log.reversed().joinToString("\n") { "${fmt.format(Date(it.time))}  ${it.text}" }
+    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT, "HPlay log").putExtra(Intent.EXTRA_TEXT, text)
+    runCatching { ctx.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
 /** «Abrir con» otro reproductor (VLC, MX Player, navegador…), pasando las cabeceras con la convención de MX Player. */

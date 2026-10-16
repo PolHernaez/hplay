@@ -1,6 +1,6 @@
 # HPlay — documentación viva
 
-> Última actualización: 2026-10-15 · versión 1.7.1 · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
+> Última actualización: 2026-10-16 · versión 1.7.2 · Investigación previa: [INVESTIGACION-HPLAY.md](INVESTIGACION-HPLAY.md)
 
 ## 0. Estado
 
@@ -189,6 +189,14 @@ Actualizadores (móvil y tele: módulo `:updater`; Windows: `receivers/windows/A
 La v1.0 se firmó con clave de prueba: quien la tenga debe desinstalarla una vez. Desde la v1.1 todo se actualiza solo.
 
 ## 10. Registro de cambios
+
+- **2026-10-16 · 1.7.2** — Lista de dominios del monitor DNS, tras verla en el móvil real llena de SDK de anuncios:
+  - Clases nuevas: **anuncios/seguimiento** (AppLovin, Unity Ads, DoubleClick, Vungle, AppsFlyer, BidMachine, Facebook
+    Graph, telemetría de Microsoft…), oculta por defecto con contador, y **sistema** (Google, ColorOS/HeyTap, Microsoft,
+    WhatsApp, consultas inversas `in-addr.arpa`).
+  - Búsqueda por dominio o app, «Solo vídeo/CDN», filtrar por app (tocando su nombre), tocar una fila copia el dominio,
+    «Copiar lista» (lo filtrado) y «Compartir registro» (texto por el menú de compartir; nada sale solo).
+  - Probado en emulador; 34 tests (clasificador con los dominios vistos en el móvil).
 
 - **2026-10-15 · 1.7.1** — Monitor DNS: si otra app está como «VPN siempre activa» (p. ej. NoAds) Android cierra el
   diálogo de permiso sin mostrarlo, aunque esa VPN esté apagada desde su app (visto en el móvil de Pol). Ahora el detector

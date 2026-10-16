@@ -45,6 +45,14 @@ class DetectorTest {
         assertEquals(DomainClass.VIDEO_SERVICE, MediaDetector.classify("rr3---sn-h5q7dnee.googlevideo.com"))
         assertEquals(DomainClass.CDN, MediaDetector.classify("d1abc.cloudfront.net."))
         assertEquals(DomainClass.OTHER, MediaDetector.classify("notgooglevideo.com"))
+        // Lo visto en el móvil real con Play Shots: SDK de anuncios y telemetría (ocultos por defecto).
+        for (h in listOf("ms4.applovin.com", "configv2.unityads.unity3d.com", "googleads.g.doubleclick.net", "logs.ads.vungle.com",
+            "z66auw-launches.appsflyersdk.com", "api.bidmachine.io", "graph.facebook.com", "mobile.events.data.microsoft.com"))
+            assertEquals(h, DomainClass.ADS, MediaDetector.classify(h))
+        assertEquals(DomainClass.SYSTEM, MediaDetector.classify("mtalk.google.com"))
+        assertEquals(DomainClass.SYSTEM, MediaDetector.classify("34.205.58.216.in-addr.arpa")) // consulta inversa (p. ej. ping)
+        assertEquals(DomainClass.SYSTEM, MediaDetector.classify("mdp-appconf-euex.heytapdl.com"))
+        assertEquals(DomainClass.OTHER, MediaDetector.classify("playshots.h3e8.com")) // servidor propio de la app: sin etiqueta
         MediaDetector.domain("video-weaver.mad01.hls.ttvnw.net", "Twitch (tv.twitch.android.app)")
         MediaDetector.domain("video-weaver.mad01.hls.ttvnw.net", "Twitch (tv.twitch.android.app)")
         val d = MediaDetector.domains.value.single()

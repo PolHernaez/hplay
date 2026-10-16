@@ -24,7 +24,8 @@ object MediaDetector {
     /** CONTENT: el detector ha leído el principio del recurso. MIME: el servidor/emisor declaró el tipo. URL: solo la extensión. */
     enum class Evidence { CONTENT, MIME, URL, NONE }
     enum class Availability { UNCHECKED, CHECKING, OK, NEEDS_HEADERS, DENIED, EXPIRED, UNREACHABLE }
-    enum class DomainClass { VIDEO_SERVICE, CDN, OTHER }
+    /** Orden = prioridad en la lista (ADS al final y oculto por defecto). ADS incluye seguimiento y analítica. */
+    enum class DomainClass { VIDEO_SERVICE, CDN, OTHER, SYSTEM, ADS }
 
     data class Item(
         val id: Long,
@@ -99,7 +100,7 @@ object MediaDetector {
             val d = Domain(n, app, (old?.count ?: 0) + 1, now, cls)
             (listOf(d) + list.filter { it !== old }).sortedWith(compareBy<Domain> { it.cls.ordinal }.thenByDescending { it.last }).take(MAX_DOMAINS)
         }
-        if (isNew && cls != DomainClass.OTHER) log("DNS: $n (${cls.name}) ← $app")
+        if (isNew && cls <= DomainClass.CDN) log("DNS: $n (${cls.name}) ← $app")
     }
 
     fun log(text: String, now: Long = System.currentTimeMillis()) = log.update { (listOf(Log(now, text)) + it).take(MAX_LOG) }
@@ -187,7 +188,7 @@ object MediaDetector {
                 "googlevideo.com", "youtube.com", "youtu.be", "ttvnw.net", "twitch.tv", "jtvnw.net", "nflxvideo.net", "netflix.com",
                 "dssott.com", "bamgrid.com", "disneyplus.com", "aiv-cdn.net", "primevideo.com", "hbomaxcdn.com", "max.com",
                 "vimeocdn.com", "vimeo.com", "dmcdn.net", "dailymotion.com", "pluto.tv", "plutotv.net", "jwpcdn.com", "jwplayer.com",
-                "mux.com", "brightcovecdn.com", "kaltura.com", "video.twimg.com", "tiktokcdn.com", "rtve.es", "3cat.cat", "ccma.cat",
+                "mux.com", "mux.dev", "brightcovecdn.com", "kaltura.com", "video.twimg.com", "tiktokcdn.com", "rtve.es", "3cat.cat", "ccma.cat",
                 "atresmedia.com", "mediasetinfinity.es", "crunchyroll.com", "spotifycdn.com", "scdn.co", "dazn.com", "dai.google.com",
             ) -> DomainClass.VIDEO_SERVICE
             under(
@@ -195,6 +196,19 @@ object MediaDetector {
                 "edgecastcdn.net", "b-cdn.net", "bunnycdn.com", "cdn77.org", "cdn77-vid.com", "azureedge.net", "gcdn.co", "cdnvideo.ru",
                 "fbcdn.net", "cdninstagram.com", "r2.dev", "workers.dev",
             ) -> DomainClass.CDN
+            under(
+                "applovin.com", "applvn.com", "unity3d.com", "doubleclick.net", "googlesyndication.com", "googleadservices.com",
+                "app-measurement.com", "vungle.com", "appsflyersdk.com", "appsflyer.com", "adjust.com", "bidmachine.io",
+                "inner-active.mobi", "liftoff.io", "liftoff-creatives.io", "mintegral.net", "mtgglobals.com", "rayjump.com",
+                "pangle.io", "pangleglobal.com", "tiktokpangle-b.us", "safedk.com", "ironsrc.com", "ironsrc.mobi", "chartboost.com",
+                "adcolony.com", "inmobi.com", "smaato.net", "bigossp.com", "branch.io", "crashlytics.com", "graph.facebook.com",
+                "an.facebook.com", "smallyy.com", "mobile.events.data.microsoft.com", "firebaselogging-pa.googleapis.com",
+            ) -> DomainClass.ADS
+            under(
+                "gstatic.com", "googleapis.com", "mtalk.google.com", "android.com", "heytapdl.com", "heytapmobi.com", "coloros.com",
+                "oppomobile.com", "samsung.com", "samsungcloud.com", "xiaomi.com", "miui.com", "microsoft.com", "windows.com",
+                "msftconnecttest.com", "whatsapp.net", "facebook.com", "in-addr.arpa", "ip6.arpa",
+            ) -> DomainClass.SYSTEM
             else -> DomainClass.OTHER
         }
     }
