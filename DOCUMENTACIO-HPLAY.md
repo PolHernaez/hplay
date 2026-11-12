@@ -190,6 +190,7 @@ La v1.0 se firmó con clave de prueba: quien la tenga debe desinstalarla una vez
 
 ## 10. Registro de cambios
 
+- **2026-11-12 · 1.8** — Icono nuevo: la H de la marca de Pol (pilares inclinados = móvil y tele, el arco rojo = la emisión). Móvil con icono adaptativo (antes solo PNG cuadrado), receptor de tele (icono y banner), webOS, Tizen y `.exe`. **Obligatoria** (`hplay.minRequired=11`).
 - **2026-10-16 · 1.7.2** — Lista de dominios del monitor DNS, tras verla en el móvil real llena de SDK de anuncios:
   - Clases nuevas: **anuncios/seguimiento** (AppLovin, Unity Ads, DoubleClick, Vungle, AppsFlyer, BidMachine, Facebook
     Graph, telemetría de Microsoft…), oculta por defecto con contador, y **sistema** (Google, ColorOS/HeyTap, Microsoft,
